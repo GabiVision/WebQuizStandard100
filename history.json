@@ -1,9 +1,1 @@
-[
-  {
-    "quizName": "Test Excel",
-    "data": "2025-09-06",
-    "oraInizio": "14:00",
-    "oraFine": "14:20",
-    "roundUsati": 2
-  }
-]
+'[{"data":"2025-09-05","oraInizio":"18:03:40","oraFine":"18:07:22","durata":"00:03:41","domandeTotali":10,"domandeConcluse":10,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0003","fileKey":"quizFile_Metabolismo p.0003","userEmail":"1","createdAt":"2025-09-05T16:07:26.317Z"},{"data":"2025-09-05","oraInizio":"17:26:46","oraFine":"17:29:49","durata":"00:03:02","domandeTotali":8,"domandeConcluse":8,"roundUsati":4,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:30:06.240Z"},{"data":"2025-09-05","oraInizio":"17:22:44","oraFine":"17:25:19","durata":"00:02:35","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:25:22.793Z"},{"data":"2025-09-05","oraInizio":"17:05:14","oraFine":"17:05:42","durata":"00:00:28","domandeTotali":8,"domandeConcluse":0,"roundUsati":1,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:05:50.559Z"},{"data":"2025-09-05","oraInizio":"17:02:52","oraFine":"17:04:49","durata":"00:01:57","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:04:55.623Z"},{"data":"2025-09-05","oraInizio":"15:07:20","oraFine":"15:10:36","durata":"00:03:16","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p0002","userEmail":"1","createdAt":"2025-09-05T13:10:41.673Z"}]'
