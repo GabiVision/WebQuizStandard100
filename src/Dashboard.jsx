@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
 import axios from 'axios'
 import Quiz from './Quiz'
+import { supabase } from './supabaseClient'
+
 
 /**
  * Dashboard “somma di caratteristiche”:
@@ -22,6 +24,51 @@ function Dashboard({ userEmail, onLogout }) {
   // Storico
   const [history, setHistory] = useState([])
 
+  //per leggere i dati da Supabase:
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const { data, error } = await supabase
+        .from('quiz_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error("Errore caricamento Supabase:", error)
+        alert("Errore Supabase: " + error.message)   // 👈 qui
+      } else {
+        console.log("Dati Supabase:", data)
+        alert("Record trovati: " + data.length)     // 👈 qui
+        setHistory(data)
+      }
+    }
+
+    fetchHistory()
+  }, [])
+
+const addTestRecord = async () => {
+  const { error } = await supabase.from('quiz_history').insert([
+    {
+      quizName: "Test Supabase",
+      data: new Date().toISOString().split("T")[0], // solo data
+      oraInizio: "15:00",
+      oraFine: "15:20",
+      durata: "00:20:00",
+      domandeTotali: 10,
+      domandeConcluse: 10,
+      roundUsati: 1,
+      timerDescrizione: "Cronometro",
+      utente: "PC"
+    }
+  ])
+
+  if (error) {
+    console.error("Errore inserimento Supabase:", error)
+  } else {
+    console.log("Record inserito con successo!")
+  }
+}
+ 
+
   // Nome quiz
   const [quizName, setQuizName] = useState("")
 
@@ -29,14 +76,14 @@ function Dashboard({ userEmail, onLogout }) {
   const [randomDomande, setRandomDomande] = useState(false)
   const [randomRisposte, setRandomRisposte] = useState(false)
 
-  useEffect(() => {
-    const saved = localStorage.getItem('quizHistory')
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved))
-      } catch {}
-    }
-  }, [])
+  //useEffect(() => {
+  //  const saved = localStorage.getItem('quizHistory')
+  //  if (saved) {
+  //    try {
+  //      setHistory(JSON.parse(saved))
+  //    } catch {}
+  //  }
+  //}, [])
 
   const appendHistory = (record) => {
     const newList = [record, ...history]
@@ -142,21 +189,54 @@ function Dashboard({ userEmail, onLogout }) {
 
 
   // --------- Fine quiz / uscita quiz ----------
-  const handleQuizFinish = (summary) => {
-    // salviamo nello storico
-    appendHistory({
-      ...summary,
-      quizName,              // 👈 nuovo campo
-      fileKey: `quizFile_${quizName}`,  // 👈 riferimento al JSON
-      userEmail: userEmail || null,
-      createdAt: new Date().toISOString()
-    })
+  //const handleQuizFinish = (summary) => {
+  //  // salviamo nello storico
+  //  appendHistory({
+  //    ...summary,
+  //    quizName,              // 👈 nuovo campo
+  //    fileKey: `quizFile_${quizName}`,  // 👈 riferimento al JSON
+  //    userEmail: userEmail || null,
+  //    createdAt: new Date().toISOString()
+  //  })
+  //  setInQuiz(false)
+  //}
+
+  const handleQuizFinish = async (summary) => {
+    // Prepara il record da salvare
+    const record = {
+      quizName,
+      data: new Date().toISOString().split("T")[0],
+      oraInizio: summary.oraInizio || "",
+      oraFine: summary.oraFine || "",
+      durata: summary.durata || "",
+      domandeTotali: summary.domandeTotali || 0,
+      domandeConcluse: summary.domandeConcluse || 0,
+      roundUsati: summary.roundUsati || 0,
+      timerDescrizione: summary.timerDescrizione || "",
+      utente: userEmail || "Anonimo"
+    }
+
+    // Inserisci in Supabase
+    const { data, error } = await supabase.from("quiz_history").insert([record]).select()
+
+    if (error) {
+      console.error("Errore inserimento Supabase:", error)
+      alert("Errore salvataggio quiz: " + error.message)
+    } else {
+      console.log("Quiz salvato in Supabase:", data)
+      // Aggiorna lo stato locale per vederlo subito in tabella
+      setHistory(prev => [data[0], ...prev])
+    }
+
     setInQuiz(false)
-  }
+  }  
 
   const handleQuitToHome = () => {
     setInQuiz(false)
   }
+
+
+
 
   // --------- Elimina riga storico ----------
   const deleteHistoryEntry = (index) => {
@@ -164,6 +244,92 @@ function Dashboard({ userEmail, onLogout }) {
     setHistory(newHistory)
     localStorage.setItem('quizHistory', JSON.stringify(newHistory))
   }
+
+// --------- Migrazione storico locale ---------- 
+  const migrateLocalHistory = async () => {
+    const saved = localStorage.getItem("quizHistory")
+    if (!saved) {
+      alert("Nessuno storico locale trovato.")
+      return
+    }
+
+    let records
+    try {
+      records = JSON.parse(saved)
+    } catch (e) {
+      console.error("Errore parsing storico locale:", e)
+      alert("Errore lettura storico locale")
+      return
+    }
+
+    if (!Array.isArray(records) || records.length === 0) {
+      alert("Storico locale vuoto.")
+      return
+    }
+
+    const formatted = records.map(r => ({
+      quizName: r.quizName,
+      data: r.data,
+      oraInizio: r.oraInizio,
+      oraFine: r.oraFine,
+      durata: r.durata,
+      domandeTotali: r.domandeTotali,
+      domandeConcluse: r.domandeConcluse,
+      roundUsati: r.roundUsati,
+      timerDescrizione: r.timerDescrizione,
+      utente: r.userEmail || "Anonimo"
+    }))
+
+    const { data, error } = await supabase.from("quiz_history").insert(formatted).select()
+
+    if (error) {
+      console.error("Errore migrazione Supabase:", error)
+      alert("Errore durante la migrazione: " + error.message)
+    } else {
+      console.log("Migrazione completata:", data)
+      alert("Storico locale migrato con successo!")
+      setHistory(prev => [...data, ...prev])
+    }
+  }
+
+  // --------- Migrazione manuale da JSON copiato ---------- 
+  const migrateFromJsonText = async () => {
+    const jsonText = '[{"data":"2025-09-05","oraInizio":"18:03:40","oraFine":"18:07:22","durata":"00:03:41","domandeTotali":10,"domandeConcluse":10,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0003","fileKey":"quizFile_Metabolismo p.0003","userEmail":"1","createdAt":"2025-09-05T16:07:26.317Z"},{"data":"2025-09-05","oraInizio":"17:26:46","oraFine":"17:29:49","durata":"00:03:02","domandeTotali":8,"domandeConcluse":8,"roundUsati":4,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:30:06.240Z"},{"data":"2025-09-05","oraInizio":"17:22:44","oraFine":"17:25:19","durata":"00:02:35","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:25:22.793Z"},{"data":"2025-09-05","oraInizio":"17:05:14","oraFine":"17:05:42","durata":"00:00:28","domandeTotali":8,"domandeConcluse":0,"roundUsati":1,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:05:50.559Z"},{"data":"2025-09-05","oraInizio":"17:02:52","oraFine":"17:04:49","durata":"00:01:57","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p.0002","fileKey":"quizFile_Metabolismo p.0002","userEmail":"1","createdAt":"2025-09-05T15:04:55.623Z"},{"data":"2025-09-05","oraInizio":"15:07:20","oraFine":"15:10:36","durata":"00:03:16","domandeTotali":8,"domandeConcluse":8,"roundUsati":3,"timerDescrizione":"Cronometro crescente","quizName":"Metabolismo p0002","userEmail":"1","createdAt":"2025-09-05T13:10:41.673Z"}]' // 👈 QUI il JSON che mi hai dato (tutto intero)
+
+    let records
+    try {
+      records = JSON.parse(jsonText)
+    } catch (e) {
+      console.error("Errore parsing JSON:", e)
+      alert("Errore nel testo JSON")
+      return
+    }
+
+    const formatted = records.map(r => ({
+      quizName: r.quizName,
+      data: r.data,
+      oraInizio: r.oraInizio,
+      oraFine: r.oraFine,
+      durata: r.durata,
+      domandeTotali: r.domandeTotali,
+      domandeConcluse: r.domandeConcluse,
+      roundUsati: r.roundUsati,
+      timerDescrizione: r.timerDescrizione,
+      utente: r.userEmail || "Anonimo"
+    }))
+
+    const { data, error } = await supabase.from("quiz_history").insert(formatted).select()
+
+    if (error) {
+      console.error("Errore import JSON:", error)
+      alert("Errore durante import: " + error.message)
+    } else {
+      console.log("Import da JSON completato:", data)
+      alert("Import da JSON completato con successo!")
+      setHistory(prev => [...data, ...prev])
+    }
+  }
+
 
 
 
@@ -281,6 +447,16 @@ function Dashboard({ userEmail, onLogout }) {
         </p>
       </section>
 
+
+      <button onClick={migrateLocalHistory} style={{ marginBottom: '1rem' }}>
+        ⬆️ Migra storico locale su Supabase
+      </button>
+
+      <button onClick={migrateFromJsonText} style={{ marginBottom: '1rem', background:'#ffa' }}>
+        📥 Importa storico da JSON copiato
+      </button>
+
+
       {/* Storico */}
       <section>
         <h3>Storico Quiz</h3>
@@ -364,6 +540,12 @@ function Dashboard({ userEmail, onLogout }) {
           </div>
         )}
       </section>
+      <button onClick={addTestRecord} style={{ marginBottom: '1rem' }}>
+        ➕ Aggiungi record di test
+      </button>
+
+
+
     </div>
   )
 }
