@@ -147,9 +147,22 @@ const addTestRecord = async () => {
     }
 
     // Salva su localStorage il contenuto del quiz in JSON separato
+    // Salva anche su Supabase
+    const { error } = await supabase.from("quiz_files").insert([
+      {
+        quizName: name,
+        questions: parsed
+      }
+    ])
+
+    if (error) {
+      console.error("Errore salvataggio quiz in Supabase:", error)
+      alert("Errore salvataggio quiz in Supabase: " + error.message)
+    }
+
+    // Manteniamo anche il localStorage come backup locale
     const fileKey = `quizFile_${name}`
     localStorage.setItem(fileKey, JSON.stringify(parsed))
-
 
     setQuizName(name)
     setDomande(parsed)
@@ -331,7 +344,59 @@ const addTestRecord = async () => {
   }
 
 
+// --------- Migrazione quizFile_* dal localStorage a Supabase ----------
+  const migrateQuizFiles = async () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith("quizFile_"))
 
+    if (keys.length === 0) {
+      alert("Nessun quizFile_ trovato in localStorage.")
+      return
+    }
+
+    let insertedCount = 0
+    for (let k of keys) {
+      try {
+        const quizName = k.replace("quizFile_", "")
+        const questions = JSON.parse(localStorage.getItem(k))
+
+        // controlla se già presente su Supabase
+        const { data: existing, error: checkError } = await supabase
+          .from("quiz_files")
+          .select("id")
+          .eq("quizName", quizName)
+          .maybeSingle()
+
+        if (checkError) {
+          console.error("Errore controllo esistenza:", checkError)
+          continue
+        }
+
+        if (existing) {
+          console.log(`Quiz ${quizName} già presente, salto inserimento.`)
+          continue
+        }
+
+        const { error } = await supabase.from("quiz_files").insert([
+          {
+            quizName,
+            questions
+          }
+        ])
+
+        if (error) {
+          console.error("Errore inserimento quiz:", error)
+        } else {
+          insertedCount++
+          console.log(`Quiz ${quizName} inserito con successo.`)
+        }
+
+      } catch (e) {
+        console.error("Errore parsing quizFile:", k, e)
+      }
+    }
+
+    alert(`Migrazione completata! Quiz inseriti: ${insertedCount}`)
+  }
 
 
   // --------- UI ----------
@@ -456,6 +521,10 @@ const addTestRecord = async () => {
         📥 Importa storico da JSON copiato
       </button>
 
+      <button onClick={migrateQuizFiles} style={{ marginBottom: '1rem', background:'#aaf' }}>
+        📤 Migra quizFile locali su Supabase
+      </button>
+
 
       {/* Storico */}
       <section>
@@ -495,14 +564,39 @@ const addTestRecord = async () => {
                     <td style={td}>{h.userEmail || '-'}</td>
                     <td style={td}>
                       <button
-                        onClick={() => {
-                          const quizData = localStorage.getItem(h.fileKey)
-                          if (quizData) {
-                            setQuizName(h.quizName)
-                            setDomande(JSON.parse(quizData))
-                            setInQuiz(true)
-                          } else {
-                            alert("Quiz non trovato in archivio locale.")
+                        onClick={async () => {
+                          try {
+                            // 1. tenta di caricare da Supabase
+                            const { data, error } = await supabase
+                              .from("quiz_files")
+                              .select("questions")
+                              .eq("quizName", h.quizName)
+                              .maybeSingle()
+
+                            if (error) {
+                              console.error("Errore Supabase:", error)
+                            }
+
+                            if (data && data.questions) {
+                              // trovato su Supabase
+                              setQuizName(h.quizName)
+                              setDomande(data.questions)
+                              setInQuiz(true)
+                              return
+                            }
+
+                            // 2. fallback: prova da localStorage
+                            const quizData = localStorage.getItem(h.fileKey)
+                            if (quizData) {
+                              setQuizName(h.quizName)
+                              setDomande(JSON.parse(quizData))
+                              setInQuiz(true)
+                            } else {
+                              alert("Quiz non trovato né in Supabase né in locale.")
+                            }
+                          } catch (e) {
+                            console.error("Errore apertura quiz:", e)
+                            alert("Errore durante il caricamento del quiz.")
                           }
                         }}
                         style={{ marginRight: '0.5rem' }}
