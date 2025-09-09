@@ -24,6 +24,11 @@ function Dashboard({ userEmail, onLogout }) {
   // Storico
   const [history, setHistory] = useState([])
 
+  // Anteprima quiz
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewQuiz, setPreviewQuiz] = useState({ name: "", questions: [] })
+  
+
   //per leggere i dati da Supabase:
   useEffect(() => {
     const fetchHistory = async () => {
@@ -45,36 +50,54 @@ function Dashboard({ userEmail, onLogout }) {
     fetchHistory()
   }, [])
 
-const addTestRecord = async () => {
-  const { error } = await supabase.from('quiz_history').insert([
-    {
-      quizName: "Test Supabase",
-      data: new Date().toISOString().split("T")[0], // solo data
-      oraInizio: "15:00",
-      oraFine: "15:20",
-      durata: "00:20:00",
-      domandeTotali: 10,
-      domandeConcluse: 10,
-      roundUsati: 1,
-      timerDescrizione: "Cronometro",
-      utente: "PC"
-    }
-  ])
 
-  if (error) {
-    console.error("Errore inserimento Supabase:", error)
-  } else {
-    console.log("Record inserito con successo!")
-  }
-}
+
+// Carica la Libreria (quiz_files) al mount della Dashboard 09/09/2025
+useEffect(() => {
+  // se hai già definito reloadLibraryFromSupabase in alto, lo riusiamo
+  reloadLibraryFromSupabase()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [])
+
+
+
+
+
+// aggiungi record di test
+//const addTestRecord = async () => {
+//  const { error } = await supabase.from('quiz_history').insert([
+//    {
+//      quizName: "Test Supabase",
+//      data: new Date().toISOString().split("T")[0], // solo data
+//      oraInizio: "15:00",
+//      oraFine: "15:20",
+//      durata: "00:20:00",
+//      domandeTotali: 10,
+//      domandeConcluse: 10,
+//      roundUsati: 1,
+//      timerDescrizione: "Cronometro",
+//      utente: "PC"
+//    }
+//  ])
+//
+//  if (error) {
+//    console.error("Errore inserimento Supabase:", error)
+//  } else {
+//    console.log("Record inserito con successo!")
+//  }
+//}
  
-
   // Nome quiz
   const [quizName, setQuizName] = useState("")
 
   // Opzioni random
   const [randomDomande, setRandomDomande] = useState(false)
   const [randomRisposte, setRandomRisposte] = useState(false)
+
+
+  // Libreria quiz (quiz_files) 09/09/2025
+  const [library, setLibrary] = useState([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
 
   //useEffect(() => {
   //  const saved = localStorage.getItem('quizHistory')
@@ -85,11 +108,11 @@ const addTestRecord = async () => {
   //  }
   //}, [])
 
-  const appendHistory = (record) => {
-    const newList = [record, ...history]
-    setHistory(newList)
-    localStorage.setItem('quizHistory', JSON.stringify(newList))
-  }
+  //const appendHistory = (record) => {
+  //  const newList = [record, ...history]
+  //  setHistory(newList)
+  //  localStorage.setItem('quizHistory', JSON.stringify(newList))
+  //}
 
   // --------- Caricamento domande da Excel ----------
   const handleExcel = async (file) => {
@@ -136,37 +159,98 @@ const addTestRecord = async () => {
     }
 
     // 👇 chiedi nome quiz
-    let name = prompt("Inserisci un nome per il quiz:")
-    if (!name) {
-      alert("Nome quiz obbligatorio.")
-      return
-    }
-    if (history.some(h => h.quizName === name)) {
-      alert("Questo nome esiste già, scegline un altro.")
-      return
-    }
 
-    // Salva su localStorage il contenuto del quiz in JSON separato
-    // Salva anche su Supabase
-    const { error } = await supabase.from("quiz_files").insert([
-      {
-        quizName: name,
-        questions: parsed
+    // Manteniamo anche il localStorage come backup locale (Modif il 09/09/2025)
+    //const fileKey = `quizFile_${name}`
+    //localStorage.setItem(fileKey, JSON.stringify(parsed))
+
+    //setQuizName(name)
+    //setDomande(parsed)
+    //setInQuiz(true)
+    // script modificato con questo sotto
+
+// === NOME QUIZ con scelta su conflitto ===
+let rawName = prompt("Inserisci un nome per il quiz:")
+if (!rawName) {
+  alert("Nome quiz obbligatorio.")
+  return
+}
+let cleanedName = rawName.trim()
+if (!cleanedName) {
+  alert("Nome quiz non valido.")
+  return
+}
+
+// ciclo: se esiste già, chiedi se sovrascrivere o rinominare
+while (true) {
+  const { data: existing, error: checkErr } = await supabase
+    .from("quiz_files")
+    .select("id")
+    .eq("quizName", cleanedName)
+    .maybeSingle()
+
+  if (checkErr) {
+    console.error("Errore controllo esistenza quiz:", checkErr)
+    alert("Errore durante il controllo nome quiz.")
+    return
+  }
+
+  if (existing) {
+    const overwrite = window.confirm(
+      `Esiste già un quiz chiamato "${cleanedName}".\n\n` +
+      `👉 Premi OK per SOVRASCRIVERE il contenuto del quiz esistente.\n` +
+      `👉 Premi ANNULLA per inserire un NOME DIVERSO.`
+    )
+    if (overwrite) {
+      break // usiamo questo nome e sovrascriviamo
+    } else {
+      const nuovo = window.prompt("Inserisci un nome diverso:")
+      if (!nuovo) {
+        alert("Operazione annullata.")
+        return
       }
-    ])
+      cleanedName = nuovo.trim()
+      if (!cleanedName) {
+        alert("Nome non valido.")
+        return
+      }
+      // ripete il while con il nuovo nome
+      continue
+    }
+  } else {
+    // nome libero
+    break
+  }
+}
 
-    if (error) {
-      console.error("Errore salvataggio quiz in Supabase:", error)
-      alert("Errore salvataggio quiz in Supabase: " + error.message)
+// === SALVA/AGGIORNA IN SUPABASE, SENZA AVVIARE IL QUIZ ===
+try {
+  const { error } = await supabase
+    .from("quiz_files")
+    .upsert(
+      [{ quizName: cleanedName, questions: parsed }],
+      { onConflict: "quizName" } // se esiste già, aggiorna
+    )
+
+  if (error) {
+    console.error("Errore salvataggio quiz in Supabase:", error)
+    alert("Errore salvataggio quiz in Supabase: " + (error.message || ""))
+    return
+  }
+
+      // opzionale: mantieni una copia locale come backup + su supabase
+      const fileKey = `quizFile_${cleanedName}`
+      localStorage.setItem(fileKey, JSON.stringify(parsed))
+
+      alert(`Quiz "${cleanedName}" caricato/aggiornato in Libreria (Supabase).`)
+
+      // ⚠️ NON avviamo il quiz: niente setDomande / setInQuiz(true)
+    } catch (e) {
+      console.error(e)
+      alert("Errore imprevisto nel salvataggio del quiz.")
     }
 
-    // Manteniamo anche il localStorage come backup locale
-    const fileKey = `quizFile_${name}`
-    localStorage.setItem(fileKey, JSON.stringify(parsed))
 
-    setQuizName(name)
-    setDomande(parsed)
-    setInQuiz(true)
   }
 
 //
@@ -177,7 +261,7 @@ const addTestRecord = async () => {
       const res = await axios.get('http://127.0.0.1:5000/domande')
       if (Array.isArray(res.data) && res.data.length) {
           // 👇 chiedi nome quiz
-        let name = prompt("Inserisci un nome per il quiz:")
+        let name = window.prompt("Inserisci un nome per il quiz:")
         if (!name) {
           alert("Nome quiz obbligatorio.")
           return
@@ -252,11 +336,122 @@ const addTestRecord = async () => {
 
 
   // --------- Elimina riga storico ----------
-  const deleteHistoryEntry = (index) => {
-    const newHistory = history.filter((_, i) => i !== index)
-    setHistory(newHistory)
-    localStorage.setItem('quizHistory', JSON.stringify(newHistory))
+  // --------- Elimina riga dallo STORICO (quiz_history su Supabase) ----------
+  const deleteHistoryEntry = async (index) => {
+    const row = history[index]
+    if (!row) return
+
+    const ok = window.confirm("Vuoi eliminare questo record dallo storico condiviso?")
+    if (!ok) return
+
+    try {
+      // elimina riga storico su Supabase (preferisci per id, altrimenti fallback per campi chiave)
+      let query = supabase.from('quiz_history').delete()
+
+      if (row.id) {
+        query = query.eq('id', row.id)                   // percorso standard
+      } else {
+        // fallback nel raro caso non avessi l'id nel record già in memoria
+        query = query
+          .eq('quizName', row.quizName || row.quizname || '')
+          .eq('data', row.data || '')
+          .eq('oraInizio', row.oraInizio || '')
+      }
+
+      const { error } = await query
+
+      if (error) {
+        console.error("Errore cancellazione Supabase:", error)
+        window.alert("Errore durante la cancellazione su Supabase: " + (error.message || ""))
+        return
+      }
+
+      // aggiorna subito la UI locale
+      setHistory(prev => prev.filter((_, i) => i !== index))
+
+      // se hai la funzione di reload, puoi richiamarla per essere 100% allineato
+      if (typeof reloadHistoryFromSupabase === 'function') {
+        await reloadHistoryFromSupabase()
+      }
+
+      // (opzionale) se avevi vecchio localStorage, evitiamo di ri-sincronizzarlo:
+      // window.localStorage.setItem('quizHistory', JSON.stringify(history.filter((_, i) => i !== index)))
+    } catch (e) {
+      console.error("Errore imprevisto cancellazione:", e)
+      window.alert("Errore imprevisto durante la cancellazione.")
+    }
   }
+
+
+  // Rinomina un record dello STORICO (quiz_history) su Supabase 09/09/25
+  const renameHistoryEntry = async (index) => {
+    const row = history[index]
+    if (!row) return
+
+    let nuovo = window.prompt("Modifica nome quiz:", row.quizName || "")
+    if (nuovo == null) return // annullato
+    nuovo = nuovo.trim()
+    if (!nuovo) { window.alert("Nome non valido."); return }
+
+    // Se uguale non fare nulla
+    if (nuovo === (row.quizName || "")) return
+
+    // ✅ Mantengo la tua regola: nome non deve essere già usato in altre righe dello storico
+    if (history.some((x, j) => j !== index && (x.quizName || "") === nuovo)) {
+      window.alert("Nome già usato. Scegli un altro.")
+      return
+    }
+
+    try {
+      // 1) 🔄 Aggiorna su Supabase (fonte condivisa)
+      const { error } = await supabase
+        .from("quiz_history")
+        .update({ quizName: nuovo })
+        .eq("id", row.id)
+
+      if (error) {
+        console.error("Errore rename storico Supabase:", error)
+        window.alert("Errore durante la rinomina su Supabase: " + (error.message || ""))
+        return
+      }
+
+      // ✅ Aggiorna subito la UI locale (come facevi tu)
+      const newHistory = history.map((r, i) => i === index ? { ...r, quizName: nuovo } : r)
+    setHistory(newHistory)
+
+      // 3) 🔁 Backup locale (come vuoi tu)
+      window.localStorage.setItem("quizHistory", JSON.stringify(newHistory))
+
+    } catch (e) {
+      console.error("Errore imprevisto rename storico:", e)
+      window.alert("Errore imprevisto durante la rinomina.")
+    }
+  }
+
+
+
+
+
+// Rileggi lo storico da Supabase on-demand
+  const reloadHistoryFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error("Errore reload storico:", error)
+        window.alert("Errore reload storico: " + (error.message || ""))
+        return
+      }
+      setHistory(data)
+    } catch (e) {
+      console.error("Errore imprevisto reload storico:", e)
+      window.alert("Errore imprevisto durante reload storico.")
+    }
+  }
+
 
 // --------- Migrazione storico locale ---------- 
   const migrateLocalHistory = async () => {
@@ -398,7 +593,226 @@ const addTestRecord = async () => {
     alert(`Migrazione completata! Quiz inseriti: ${insertedCount}`)
   }
 
+  // --------- Anteprima: carica domande da Supabase e mostra overlay ----------
+  const openPreview = async (h) => {
+    try {
+      const { data, error } = await supabase
+        .from("quiz_files")
+        .select("questions")
+        .eq("quizName", h.quizName)
+        .maybeSingle()
 
+      if (error) {
+        console.error("Errore Supabase (anteprima):", error)
+        alert("Impossibile aprire l’anteprima.")
+        return
+      }
+      if (!data || !data.questions?.length) {
+        alert("Nessuna domanda trovata per questo quiz.")
+        return
+      }
+
+      setPreviewQuiz({ name: h.quizName, questions: data.questions })
+      setPreviewOpen(true)
+    } catch (e) {
+      console.error("Errore anteprima:", e)
+      alert("Errore durante l’anteprima.")
+    }
+  }
+
+
+  // Rileggi libreria quiz da Supabase 09/09/25
+  const reloadLibraryFromSupabase = async () => {
+    try {
+      setLibraryLoading(true)
+      const { data, error } = await supabase
+        .from('quiz_files')
+        .select('id, quizName, created_at, questions')   // 👈 aggiunto id 09/09/25
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Errore caricamento quiz_files:', error)
+        window.alert('Errore libreria: ' + (error.message || ''))
+        return
+      }
+      // normalizza: domandeCount per colonna
+      const rows = (data || []).map(r => ({
+        id: r.id,                                          // 👈 aggiunto 09/09/25
+        quizName: r.quizName,
+        created_at: r.created_at,
+        questions: r.questions,
+        domandeCount: Array.isArray(r.questions) ? r.questions.length : 0
+      }))
+      setLibrary(rows)
+    } catch (e) {
+      console.error('Errore libreria:', e)
+      window.alert('Errore imprevisto durante la lettura della libreria.')
+    } finally {
+      setLibraryLoading(false)
+    }
+  }
+
+  // Elimina un quiz dalla Libreria (quiz_files) – 09/09/25 robusto: per id o per quizName
+  const deleteLibraryQuiz = async (index) => {
+    const row = library[index]
+    if (!row) return
+
+    const ok = window.confirm(
+      `Vuoi eliminare definitivamente il quiz "${row.quizName}" dalla Libreria condivisa?`
+    )
+    if (!ok) return
+
+    try {
+      let query = supabase.from('quiz_files').delete()
+
+      if (row.id) {
+        // percorso standard: elimina per UUID
+        query = query.eq('id', row.id)
+      } else {
+        // fallback sicuro se l'id non è presente nello stato
+        query = query.eq('quizName', row.quizName)
+      }
+
+      const { error } = await query
+
+      if (error) {
+        console.error('Errore cancellazione quiz_files:', error)
+        window.alert('Errore durante la cancellazione: ' + (error.message || ''))
+        return
+      }
+
+      // Aggiorna UI locale
+      setLibrary(prev => prev.filter((_, i) => i !== index))
+      window.alert(`Quiz "${row.quizName}" eliminato.`)
+    } catch (e) {
+      console.error('Errore imprevisto cancellazione libreria:', e)
+      window.alert('Errore imprevisto durante la cancellazione.')
+    }
+  }
+
+
+
+
+  // Rinomina un quiz nella Libreria (quiz_files) con gestione conflitto
+  const renameLibraryQuiz = async (index) => {
+    const row = library[index]
+    if (!row) return
+
+    let nuovo = window.prompt("Nuovo nome per il quiz:", row.quizName)
+    if (nuovo == null) return // annullato
+    nuovo = nuovo.trim()
+    if (!nuovo) { window.alert("Nome non valido."); return }
+
+    // Se non cambia, niente da fare
+    if (nuovo === row.quizName) return
+
+    try {
+      // Controllo se esiste già un quiz con quel nome
+      const { data: existing, error: checkErr } = await supabase
+        .from("quiz_files")
+        .select("id")
+        .eq("quizName", nuovo)
+        .maybeSingle()
+
+      if (checkErr) {
+        console.error("Errore controllo nome:", checkErr)
+        window.alert("Errore durante il controllo del nome.")
+        return
+      }
+
+      if (existing && existing.id !== row.id) {
+        // Conflitto: esiste un altro quiz con quel nome
+        const overwrite = window.confirm(
+          `Esiste già un quiz chiamato "${nuovo}".\n\n` +
+          `👉 OK: SOVRASCRIVI quel quiz con le domande di "${row.quizName}"\n` +
+          `👉 Annulla: scegli un NOME DIVERSO`
+        )
+        if (!overwrite) return
+
+        // 1) Upsert: scrive le domande correnti con il nuovo nome (aggiorna il record esistente)
+        const { error: upErr } = await supabase
+          .from("quiz_files")
+          .upsert(
+            [{ quizName: nuovo, questions: row.questions }],
+            { onConflict: "quizName" }
+          )
+
+        if (upErr) {
+          console.error("Errore upsert su quiz esistente:", upErr)
+          window.alert("Errore durante la sovrascrittura: " + (upErr.message || ""))
+          return
+        }
+
+        // 2) Elimina il record attuale (vecchio nome)
+        const { error: delErr } = await supabase
+          .from("quiz_files")
+          .delete()
+          .eq("id", row.id)
+
+        if (delErr) {
+          console.error("Errore eliminazione vecchio record:", delErr)
+          window.alert("Errore durante la pulizia del vecchio quiz: " + (delErr.message || ""))
+          return
+        }
+
+        // Aggiorna UI
+        await reloadLibraryFromSupabase()
+        window.alert(`Quiz rinominato in "${nuovo}" sovrascrivendo quello esistente.`)
+        return
+      }
+
+      // Nessun conflitto: basta aggiornare il nome del record corrente
+      const { error: updErr } = await supabase
+        .from("quiz_files")
+        .update({ quizName: nuovo })
+        .eq("id", row.id)
+
+      if (updErr) {
+        console.error("Errore rename:", updErr)
+        window.alert("Errore durante la rinomina: " + (updErr.message || ""))
+        return
+      }
+
+      // Aggiorna UI locale velocemente senza refetch completo
+      setLibrary(prev => prev.map((r, i) => i === index ? { ...r, quizName: nuovo } : r))
+      window.alert(`Quiz rinominato in "${nuovo}".`)
+    } catch (e) {
+      console.error("Errore imprevisto rename:", e)
+      window.alert("Errore imprevisto durante la rinomina.")
+    }
+  }
+
+
+
+
+
+  // Diagnostica: verifica connessione/permessi su entrambe le tabelle
+  const diagnoseSupabase = async () => {
+    try {
+      console.log("Diagnostica: inizio…")
+
+      const ping1 = await supabase.from('quiz_history').select('id').limit(1)
+      console.log("quiz_history:", ping1)
+
+      const ping2 = await supabase.from('quiz_files').select('id').limit(1)
+      console.log("quiz_files:", ping2)
+
+      const mk = (res) => res.error ? `❌ ${res.error.message}` : `✅ ok (${(res.data||[]).length} righe lette)`
+
+      window.alert(
+        "Diagnostica Supabase\n\n" +
+        `quiz_history: ${mk(ping1)}\n` +
+        `quiz_files:  ${mk(ping2)}\n`
+      )
+    } catch (e) {
+      console.error("Diagnostica: exception", e)
+      window.alert("Diagnostica: eccezione JS: " + e.message)
+    }
+  }
+
+
+  // --------- UI ----------
+  // --------- UI ----------
   // --------- UI ----------
   if (inQuiz && domande) {
     return (
@@ -525,6 +939,98 @@ const addTestRecord = async () => {
         📤 Migra quizFile locali su Supabase
       </button>
 
+      {/* PULSANTI BUTTONS */}
+      {/* Libreria Quiz (fonte: quiz_files) */}
+      <section style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3>Libreria Quiz</h3>
+          <button onClick={diagnoseSupabase} style={{ marginBottom:'0.75rem' }}>
+            🧪 Diagnostica Supabase
+          </button>
+          <button onClick={reloadLibraryFromSupabase}>
+            {libraryLoading ? 'Carico…' : '🔄 Aggiorna Libreria'}
+          </button>
+        </div>
+
+        {library.length === 0 ? (
+          <p style={{ color:'#666' }}>
+            Nessun quiz in libreria. Carica un file Excel per aggiungerne, poi premi “🔄 Aggiorna Libreria”.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse:'collapse', width:'100%' }}>
+              <thead>
+                <tr>
+                  <th style={th}>Data</th>
+                  <th style={th}>Quiz</th>
+                  <th style={th}>Domande</th>
+                  <th style={th}>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {library.map((q, i) => (
+                  <tr key={i}>
+                    <td style={td}>{q.created_at?.slice(0,10) || '-'}</td>
+                    <td style={td}>{q.quizName}</td>
+                    <td style={td}>{q.domandeCount}</td>
+                    <td style={td}>
+                      {/* Anteprima 👁️ */}
+                      <button
+                        onClick={() => {
+                          if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
+                          setPreviewQuiz({ name: q.quizName, questions: q.questions })
+                          setPreviewOpen(true)
+                        }}
+                        title="Anteprima"
+                        style={{ marginRight: '0.5rem' }}
+                      >
+                        👁️
+                      </button>
+
+                      {/* Start ▶️ */}
+                      <button
+                        onClick={() => {
+                          if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
+                          setQuizName(q.quizName)
+                          setDomande(q.questions)
+                          setInQuiz(true)
+                        }}
+                        title="Avvia quiz"
+                        style={{ marginRight: '0.5rem' }}
+                      >
+                        ▶️
+                      </button>
+
+                      {/* Rinomina ✏️ */}
+                      <button
+                        onClick={() => renameLibraryQuiz(i)}
+                        title="Rinomina quiz"
+                        style={{ marginRight: '0.5rem' }}
+                      >
+                        ✏️
+                      </button>
+
+
+                      {/* Elimina 🗑️ */}
+                      <button
+                        onClick={() => deleteLibraryQuiz(i)}
+                        title="Elimina quiz dalla Libreria"
+                        style={{ color:'red' }}
+                      >
+                        🗑️
+                      </button>
+
+
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+
 
       {/* Storico */}
       <section>
@@ -563,6 +1069,14 @@ const addTestRecord = async () => {
                     <td style={td}>{h.timerDescrizione}</td>
                     <td style={td}>{h.userEmail || '-'}</td>
                     <td style={td}>
+                      <button
+                        onClick={() => openPreview(h)}
+                        title="Anteprima"
+                        style={{ marginRight: '0.5rem' }}
+                      >
+                        👁️
+                      </button>
+
                       <button
                         onClick={async () => {
                           try {
@@ -604,18 +1118,7 @@ const addTestRecord = async () => {
                         🔄
                       </button>
                       <button
-                        onClick={() => {
-                          let nuovo = prompt("Modifica nome quiz:", h.quizName || "")
-                          if (!nuovo) return
-                          if (history.some((x, j) => j !== i && x.quizName === nuovo)) {
-                            alert("Nome già usato. Scegli un altro.")
-                            return
-                          }
-                          const newHistory = [...history]
-                          newHistory[i] = { ...newHistory[i], quizName: nuovo }
-                          setHistory(newHistory)
-                          localStorage.setItem("quizHistory", JSON.stringify(newHistory))
-                        }}
+                        onClick={() => renameHistoryEntry(i)}
                         style={{ marginLeft: '0.5rem' }}
                       >
                         ✏️
@@ -634,10 +1137,62 @@ const addTestRecord = async () => {
           </div>
         )}
       </section>
-      <button onClick={addTestRecord} style={{ marginBottom: '1rem' }}>
-        ➕ Aggiungi record di test
-      </button>
 
+
+      {/* Aggiungi record di test 
+      <button onClick={addTestRecord} style={{ marginBottom: '1rem' }}>
+         ➕ Aggiungi record di test
+      </button> */}
+
+
+      {/* overlay dell’anteprima (modale semplice) */}
+      {previewOpen && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.5)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999
+        }}>
+          <div style={{
+            width:'min(900px, 95vw)', maxHeight:'85vh', overflow:'auto',
+            background:'#fff', borderRadius:'12px', padding:'1rem 1.25rem', boxShadow:'0 10px 30px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
+              <h3 style={{ margin:0 }}>Anteprima — {previewQuiz.name}</h3>
+              <button onClick={() => setPreviewOpen(false)} style={{ fontSize:'1.1rem' }}>✖</button>
+            </div>
+            <hr/>
+
+            <div style={{ display:'grid', gap:'0.75rem', marginTop:'0.75rem' }}>
+              {previewQuiz.questions.map((q, idx) => (
+                <div key={q.id ?? idx} style={{ border:'1px solid #eee', borderRadius:'10px', padding:'0.75rem' }}>
+                  <div style={{ fontWeight:600, marginBottom:'0.5rem' }}>
+                    {idx + 1}. {q.domanda}
+                  </div>
+                  <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:'0.35rem' }}>
+                    {q.risposte.map((r, i) => {
+                      const isCorrect = (i + 1) === q.corretta
+                      return (
+                        <li key={i} style={{
+                          padding:'0.4rem 0.6rem',
+                          border:'1px solid #eee',
+                          borderRadius:'8px',
+                          background: isCorrect ? '#eafaea' : '#fafafa',
+                          display:'flex', alignItems:'center', gap:'0.5rem'
+                        }}>
+                          <span style={{ width:20, textAlign:'center' }}>
+                            {isCorrect ? '✅' : '•'}
+                          </span>
+                          <span>{r}</span>
+                          {isCorrect && <span style={{ marginLeft:'auto', fontSize:'0.85rem', color:'#2e7d32' }}>Corretta</span>}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>
