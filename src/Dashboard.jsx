@@ -811,6 +811,34 @@ try {
   }
 
 
+
+  // Diagnostica solo per quiz_files
+  const diagnoseLibrary = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_files')
+        .select('*')
+        .limit(5)
+
+      if (error) {
+        console.error("Errore quiz_files:", error)
+        window.alert("Errore quiz_files: " + (error.message || ""))
+        return
+      }
+
+      console.log("quiz_files (prime 5 righe):", data)
+      window.alert(
+        data && data.length
+          ? `quiz_files contiene ${data.length} record (vedi console per dettagli)`
+          : "quiz_files è vuota"
+      )
+    } catch (e) {
+      console.error("Diagnostica quiz_files exception:", e)
+      window.alert("Diagnostica quiz_files exception: " + e.message)
+    }
+  }
+
+
   // --------- UI ----------
   // --------- UI ----------
   // --------- UI ----------
@@ -951,6 +979,10 @@ try {
             {libraryLoading ? 'Carico…' : '🔄 Aggiorna Libreria'}
           </button>
         </div>
+
+          <button onClick={diagnoseLibrary} style={{ marginBottom:'0.75rem' }}>
+            🧪 Diagnostica Libreria
+          </button>
 
         {library.length === 0 ? (
           <p style={{ color:'#666' }}>
