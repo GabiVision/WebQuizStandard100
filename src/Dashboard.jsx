@@ -60,6 +60,14 @@ function Dashboard({ userEmail, onLogout }) {
   const [statsModalRows, setStatsModalRows] = useState([])
   const [statsModalTitle, setStatsModalTitle] = useState('')
 
+// Stati separati per ordinamento e filtri della MODALE statistiche
+  const [modalSort, setModalSort] = useState({ key: 'data', dir: 'desc' })
+  const [modalFilters, setModalFilters] = useState({
+    data: '', quizName: '', oraInizio: '', oraFine: '', durata: '',
+    domandeTotali: '', domandeConcluse: '', roundUsati: '', timerDescrizione: '', utente: ''
+  })
+
+
   // Anteprima quiz
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewQuiz, setPreviewQuiz] = useState({ name: "", questions: [] })
@@ -1093,7 +1101,6 @@ function Dashboard({ userEmail, onLogout }) {
     </th>
   )
 
-
       // Converte "HH:MM:SS" in secondi
       function parseDuration(durata) {
         if (!durata) return null
@@ -1164,7 +1171,20 @@ function Dashboard({ userEmail, onLogout }) {
     return ratio > 0.5 ? 'white' : 'black'
   }
 
-
+// Helper per header della tabella MODALE (separato dallo storico)
+  const headerCellModal = (label, key, width) => (
+    <th
+      style={{ ...th, width: width || 'auto' }}
+      onClick={()=>{
+        setModalSort(s => {
+          if (s.key !== key) return { key, dir:'asc' }
+          return { key, dir: s.dir==='asc' ? 'desc' : (s.dir==='desc' ? null : 'asc') }
+        })
+      }}
+    >
+      {label} {modalSort.key===key ? (modalSort.dir==='asc'?'↑':(modalSort.dir==='desc'?'↓':'')) : ''}
+    </th>
+  )
 
 
 
@@ -1699,85 +1719,137 @@ function Dashboard({ userEmail, onLogout }) {
             position:'fixed', top:0, left:0, right:0, bottom:0,
             background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
           }}>
-            <div style={{ background:'#fff', padding:'1rem', borderRadius:8, width:'95%', maxWidth:'1200px', maxHeight:'90%', overflow:'auto' }}>
-              <h2>{statsModalTitle}</h2>
+            <div style={{ background:'#fff', padding:'1rem', borderRadius:8, width:'98%', maxWidth:'1600px', maxHeight:'95%', overflow:'auto' }}>
+              {/*   h2>{statsModalTitle}</h2>  */}
+              <h2>Statistiche — {previewQuiz.name}</h2>
               
-              {/* 👇 qui richiami lo stesso blocco tabella usato nello Storico */}
-              <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
-                <thead>
-                  <tr>
-                    {headerCellHistory('Data', 'data', '90px')}
-                    {headerCellHistory('Quiz', 'quizName')}   {/* 👈 senza width → variabile */}
-                    {headerCellHistory('Ora Inizio', 'oraInizio', '70px')}
-                    {headerCellHistory('Ora Fine', 'oraFine', '70px')}
-                    {headerCellHistory('Durata', 'durata', '70px')}
-                    {headerCellHistory('Domande', 'domandeTotali', '60px')}
-                    {headerCellHistory('Apprese', 'domandeConcluse', '60px')}
-                    {headerCellHistory('Round', 'roundUsati', '60px')}
-                    {headerCellHistory('Timer', 'timerDescrizione', '200px')}
-                    {headerCellHistory('Utente', 'utente', '120px')}
-                  </tr>
-                </thead>
-                <tbody>
-                  {statsModalRows.map((h, i) => (
-                    <tr key={i}>
-                      <td style={{ ...td, textAlign: 'center' }}>{h.data}</td>
-                      <td style={{ ...td, textAlign: 'left' }}>{h.quizName || '-'}</td> {/* 👈 quiz allineato a sinistra */}
-                      <td style={{ ...td, textAlign: 'center' }}>{h.oraInizio}</td>
-                      <td style={{ ...td, textAlign: 'center' }}>{h.oraFine}</td>
-                      <td
-                        style={{
-                          ...td,
-                          textAlign: 'center',
-                          backgroundColor:
-                            h.domandeTotali === h.domandeConcluse
-                              ? getDurationColor(h.durata, statsModalRows)
-                              : 'transparent',
-                          color:
-                            h.domandeTotali === h.domandeConcluse
-                              ? getDurationTextColor(h.durata, statsModalRows)
-                              : 'inherit',
-                        }}
-                      >
-                        {h.durata}
-                      </td>
-                      <td
-                        style={{
-                          ...td,
-                          textAlign: 'center',
-                          backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
-                          color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
-                        }}
-                      >
-                        {h.domandeTotali}
-                      </td>
-                      <td
-                        style={{
-                          ...td,
-                          textAlign: 'center',
-                          backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
-                          color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
-                        }}
-                      >
-                        {h.domandeConcluse}
-                      </td>
-                      <td style={{ ...td, textAlign: 'center' }}>{h.roundUsati}</td>
-                      <td style={{ ...td, textAlign: 'center' }}>{h.timerDescrizione}</td>
-                      <td style={{ ...td, textAlign: 'center' }}>{h.utente}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {(() => {
+                // Applica filtri e ordinamento ai dati della MODALE
+                const modalFilteredSorted = statsModalRows
+                  .filter(r => {
+                    const f = modalFilters
+                    const match = (val, filter) =>
+                      !filter || (val || '').toString().toLowerCase().includes(filter.toLowerCase())
+                    return (
+                      match(r.data, f.data) &&
+                      match(r.quizName, f.quizName) &&
+                      match(r.oraInizio, f.oraInizio) &&
+                      match(r.oraFine, f.oraFine) &&
+                      match(r.durata, f.durata) &&
+                      match(r.domandeTotali, f.domandeTotali) &&
+                      match(r.domandeConcluse, f.domandeConcluse) &&
+                      match(r.roundUsati, f.roundUsati) &&
+                      match(r.timerDescrizione, f.timerDescrizione) &&
+                      match(r.utente || r.userEmail, f.utente)
+                    )
+                  })
+                  .sort((a, b) => {
+                    const { key, dir } = modalSort
+                    if (!key) return 0
+                    const va = a[key], vb = b[key]
+                    if (va == null && vb != null) return dir === 'asc' ? -1 : 1
+                    if (va != null && vb == null) return dir === 'asc' ? 1 : -1
+                    if (va == null && vb == null) return 0
+                    if (va < vb) return dir === 'asc' ? -1 : 1
+                    if (va > vb) return dir === 'asc' ? 1 : -1
+                    return 0
+                  })
+
+                return (
+
+                  <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+                    <thead>
+                      <tr>
+                        {headerCellModal('Data', 'data', '90px')}
+                        {headerCellModal('Quiz', 'quizName')}   {/* 👈 senza width → variabile */}
+                        {headerCellModal('Ora Inizio', 'oraInizio', '70px')}
+                        {headerCellModal('Ora Fine', 'oraFine', '70px')}
+                        {headerCellModal('Durata', 'durata', '70px')}
+                        {headerCellModal('Domande', 'domandeTotali', '60px')}
+                        {headerCellModal('Apprese', 'domandeConcluse', '60px')}
+                        {headerCellModal('Round', 'roundUsati', '60px')}
+                        {headerCellModal('Timer', 'timerDescrizione', '200px')}
+                        {headerCellModal('Utente', 'utente', '120px')}
+                      </tr>
+                      {/* FILTRI */}
+                      <tr>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.data} onChange={e=>setModalFilters({...modalFilters, data:e.target.value})} placeholder="aaaa-mm-gg" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'left', boxSizing: 'border-box' }} value={modalFilters.quizName} onChange={e=>setModalFilters({...modalFilters, quizName:e.target.value})} placeholder="nome quiz" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.oraInizio} onChange={e=>setModalFilters({...modalFilters, oraInizio:e.target.value})} placeholder="hh:mm" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.oraFine} onChange={e=>setModalFilters({...modalFilters, oraFine:e.target.value})} placeholder="hh:mm" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.durata} onChange={e=>setModalFilters({...modalFilters, durata:e.target.value})} placeholder="00:mm:ss" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.domandeTotali} onChange={e=>setModalFilters({...modalFilters, domandeTotali:e.target.value})} placeholder="n°" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.domandeConcluse} onChange={e=>setModalFilters({...modalFilters, domandeConcluse:e.target.value})} placeholder="n°" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.roundUsati} onChange={e=>setModalFilters({...modalFilters, roundUsati:e.target.value})} placeholder="n°" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.timerDescrizione} onChange={e=>setModalFilters({...modalFilters, timerDescrizione:e.target.value})} placeholder="timer" /></td>
+                        <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={modalFilters.utente} onChange={e=>setModalFilters({...modalFilters, utente:e.target.value})} placeholder="utente" /></td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modalFilteredSorted.map((h, i) => (
+                        <tr key={i}>
+                          <td style={{ ...td, textAlign: 'center' }}>{h.data}</td>
+                          <td style={{ ...td, textAlign: 'left' }}>{h.quizName || '-'}</td> {/* 👈 quiz allineato a sinistra */}
+                          <td style={{ ...td, textAlign: 'center' }}>{h.oraInizio}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>{h.oraFine}</td>
+                          <td
+                            style={{
+                              ...td,
+                              textAlign: 'center',
+                              backgroundColor:
+                                h.domandeTotali === h.domandeConcluse
+                                  ? getDurationColor(h.durata, modalFilteredSorted)
+                                  : 'transparent',
+                              color:
+                                h.domandeTotali === h.domandeConcluse
+                                  ? getDurationTextColor(h.durata, modalFilteredSorted)
+                                  : 'inherit',
+                            }}
+                          >
+                            {h.durata}
+                          </td>
+                          <td
+                            style={{
+                              ...td,
+                              textAlign: 'center',
+                              backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                              color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                            }}
+                          >
+                            {h.domandeTotali}
+                          </td>
+                          <td
+                            style={{
+                              ...td,
+                              textAlign: 'center',
+                              backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                              color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                            }}
+                          >
+                            {h.domandeConcluse}
+                          </td>
+                          <td style={{ ...td, textAlign: 'center' }}>{h.roundUsati}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>{h.timerDescrizione}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>{h.utente}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              })()}
 
               <div style={{ marginTop:'1rem', textAlign:'right' }}>
-                <button onClick={() => setStatsModalOpen(false)}>Chiudi</button>
+                <button onClick={() => {
+                  setStatsModalOpen(false)
+                  setModalSort({ key: 'data', dir: 'desc' })
+                  setModalFilters({ data: '', quizName: '', oraInizio: '', oraFine: '', durata: '', domandeTotali: '', domandeConcluse: '', roundUsati: '', timerDescrizione: '', utente: '' })
+                }}>
+                  Chiudi
+                </button>
               </div>
             </div>
           </div>
         )}
-
-
-
 
       {/* overlay dell’anteprima (modale semplice) */}
       {previewOpen && (
