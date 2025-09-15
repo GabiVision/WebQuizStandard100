@@ -27,6 +27,40 @@ function nowParts() {
   return { data, ora, dateObj: d }
 }
 
+
+// Normalizza una stringa: lowercase, senza accenti/punteggiatura, spazi unificati
+function normalize(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // rimuove accentate
+    .replace(/[^\p{L}\p{N}\s]/gu, '')                // toglie punteggiatura
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Similarità Dice coefficient (basata su bigrammi), utile per confrontare risposte brevi
+function diceCoefficient(a, b) {
+  a = normalize(a); b = normalize(b)
+  if (!a || !b) return 0
+  if (a === b) return 1
+  const bigrams = s => {
+    const res = []
+    for (let i = 0; i < s.length - 1; i++) res.push(s.slice(i, i+2))
+    return res
+  }
+  const A = bigrams(a), B = bigrams(b)
+  const map = new Map()
+  A.forEach(bg => map.set(bg, (map.get(bg)||0)+1))
+  let intersect = 0
+  B.forEach(bg => {
+    const c = map.get(bg)
+    if (c) { intersect++; map.set(bg, c-1) }
+  })
+  return (2 * intersect) / (A.length + B.length)
+}
+
+
+
 function Quiz({
   domande,
   timerMode = 'up',           // 'up' | 'down'
@@ -34,7 +68,9 @@ function Quiz({
   onFinish,                   // (summary) => void
   onQuit,                      // () => void
   randomDomande = false,
-  randomRisposte = false
+  randomRisposte = false,
+  freeAnswerMode = false,      //modif 10/09/25
+  freeAnswerThreshold = 0.85   //modif 10/09/25
 }) {
   const [round, setRound] = useState(1)
   const [domandeAttive, setDomandeAttive] = useState([])
@@ -44,6 +80,8 @@ function Quiz({
   const [statisticheDomande, setStatisticheDomande] = useState(() =>
     domande.map(() => ({ mostrata: 0, corrette: 0, errate: 0, nulle: 0, consecutiveCorrette: 0 }))
   )
+  // Stato per la modalità risposta aperta
+  const [freeAnswer, setFreeAnswer] = useState('')
 
   // Timer
   const [elapsedSec, setElapsedSec] = useState(0)                           // per 'up'
@@ -201,6 +239,46 @@ function Quiz({
 
   const domandaCorrente = domandeAttive[indiceDomanda]
 
+
+  // ---- Funzione comune per applicare esito risposta ----
+  const applyAnswerResult = (isCorrect) => {
+    const id = domandaCorrente.indiceOriginale
+    setStatisticheDomande(prev => {
+      const nuovo = [...prev]
+      const cur = { ...nuovo[id] }
+
+      if (isCorrect) {
+        cur.corrette += 1
+        cur.consecutiveCorrette += 1
+      } else {
+        cur.errate += 1
+        cur.consecutiveCorrette = 0
+      }
+
+      nuovo[id] = cur
+
+      if (isCorrect && cur.consecutiveCorrette >= 3) {
+        setDomandeConcluse(prevList =>
+          prevList.includes(id) ? prevList : [...prevList, id]
+        )
+      }
+
+      return nuovo
+    })
+
+    if (indiceDomanda < domandeAttive.length - 1) {
+      setIndiceDomanda(indiceDomanda + 1)
+    } else {
+      setCompletato(true)
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+    lastCountedIndex.current = null
+  }
+
+
   // ---- Gestione risposta ----
   const selezionaRisposta = (indiceRisposta) => {
     const id = domandaCorrente.indiceOriginale
@@ -247,7 +325,18 @@ function Quiz({
     lastCountedIndex.current = null
   }
 
+  // ---- Gestione risposta aperta ----
+  const confermaRispostaAperta = () => {
+    const correctText = domandaCorrente.risposte[domandaCorrente.corretta - 1]
+    const user = freeAnswer
 
+    const exact = normalize(user) === normalize(correctText)
+    const fuzzy = diceCoefficient(user, correctText) >= freeAnswerThreshold
+    const isCorrect = exact || fuzzy
+
+    applyAnswerResult(isCorrect)
+    setFreeAnswer('')
+  }
 
   // ---- Schermata finale / risultati per round ----
   if (completato) {
@@ -412,15 +501,33 @@ function Quiz({
       </div>
 
       {/* Risposte */}
-      <ul style={{ listStyle:'none', padding:0 }}>
-        {domandaCorrente.risposte.map((r, i) => (
-          <li key={i} style={{ marginBottom:'0.5rem' }}>
-            <button onClick={() => selezionaRisposta(i + 1)}>
-              {i + 1}) {r}
+      {/* Risposte */}
+      {freeAnswerMode ? (
+        <div style={{ marginTop:'1rem' }}>
+          <input
+            type="text"
+            value={freeAnswer}
+            onChange={(e) => setFreeAnswer(e.target.value)}
+            placeholder="Scrivi qui la tua risposta…"
+            style={{ width:'100%', padding:'0.5rem', border:'1px solid #ccc', borderRadius:6 }}
+          />
+          <div style={{ marginTop:'0.5rem' }}>
+            <button onClick={confermaRispostaAperta} disabled={!freeAnswer.trim()}>
+              Conferma
             </button>
-          </li>
-        ))}
-      </ul>
+          </div>
+        </div>
+      ) : (
+        <ul style={{ listStyle:'none', padding:0 }}>
+          {domandaCorrente.risposte.map((r, i) => (
+            <li key={i} style={{ marginBottom:'0.5rem' }}>
+              <button onClick={() => selezionaRisposta(i + 1)}>
+                {i + 1}) {r}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

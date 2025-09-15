@@ -4,6 +4,14 @@ import axios from 'axios'
 import Quiz from './Quiz'
 import { supabase } from './supabaseClient'
 
+function formatHMS(totalSeconds) {
+  if (!Number.isFinite(totalSeconds)) return '-'
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
+}
+
 
 /**
  * Dashboard “somma di caratteristiche”:
@@ -23,12 +31,43 @@ function Dashboard({ userEmail, onLogout }) {
 
   // Storico
   const [history, setHistory] = useState([])
+  //const [historyLoading, setHistoryLoading] = useState(false)
+
+  // Selezione multipla — Storico
+  const [selectedHist, setSelectedHist] = useState([])
+  const [histAllSelected, setHistAllSelected] = useState(false)
+
+  const toggleRowHist = (id) => {
+    setSelectedHist(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllHist = () => {
+    if (histAllSelected) {
+      setSelectedHist([])
+      setHistAllSelected(false)
+    } else {
+      const allIds = (history || []).map(h => h.id)
+      setSelectedHist(allIds)
+      setHistAllSelected(true)
+    }
+  }
+
+
+  // Stato per la modale Statistiche singolo quiz
+  const [statsModalOpen, setStatsModalOpen] = useState(false)
+  const [statsModalRows, setStatsModalRows] = useState([])
+  const [statsModalTitle, setStatsModalTitle] = useState('')
 
   // Anteprima quiz
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewQuiz, setPreviewQuiz] = useState({ name: "", questions: [] })
   
+  
 
+
+  
   //per leggere i dati da Supabase:
   useEffect(() => {
     const fetchHistory = async () => {
@@ -52,40 +91,40 @@ function Dashboard({ userEmail, onLogout }) {
 
 
 
-// Carica la Libreria (quiz_files) al mount della Dashboard 09/09/2025
-useEffect(() => {
-  // se hai già definito reloadLibraryFromSupabase in alto, lo riusiamo
-  reloadLibraryFromSupabase()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [])
+  // Carica la Libreria (quiz_files) al mount della Dashboard 09/09/2025
+  useEffect(() => {
+    // se hai già definito reloadLibraryFromSupabase in alto, lo riusiamo
+    reloadLibraryFromSupabase()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
 
 
 
 
-// aggiungi record di test
-//const addTestRecord = async () => {
-//  const { error } = await supabase.from('quiz_history').insert([
-//    {
-//      quizName: "Test Supabase",
-//      data: new Date().toISOString().split("T")[0], // solo data
-//      oraInizio: "15:00",
-//      oraFine: "15:20",
-//      durata: "00:20:00",
-//      domandeTotali: 10,
-//      domandeConcluse: 10,
-//      roundUsati: 1,
-//      timerDescrizione: "Cronometro",
-//      utente: "PC"
-//    }
-//  ])
-//
-//  if (error) {
-//    console.error("Errore inserimento Supabase:", error)
-//  } else {
-//    console.log("Record inserito con successo!")
-//  }
-//}
+  // aggiungi record di test
+  //const addTestRecord = async () => {
+  //  const { error } = await supabase.from('quiz_history').insert([
+  //    {
+  //      quizName: "Test Supabase",
+  //      data: new Date().toISOString().split("T")[0], // solo data
+  //      oraInizio: "15:00",
+  //      oraFine: "15:20",
+  //      durata: "00:20:00",
+  //      domandeTotali: 10,
+  //      domandeConcluse: 10,
+  //      roundUsati: 1,
+  //      timerDescrizione: "Cronometro",
+  //      utente: "PC"
+  //    }
+  //  ])
+  //
+  //  if (error) {
+  //    console.error("Errore inserimento Supabase:", error)
+  //  } else {
+  //    console.log("Record inserito con successo!")
+  //  }
+  //}
  
   // Nome quiz
   const [quizName, setQuizName] = useState("")
@@ -98,6 +137,61 @@ useEffect(() => {
   // Libreria quiz (quiz_files) 09/09/2025
   const [library, setLibrary] = useState([])
   const [libraryLoading, setLibraryLoading] = useState(false)
+
+  // Selezione multipla — Libreria
+  const [selectedLib, setSelectedLib] = useState([])
+  const [libAllSelected, setLibAllSelected] = useState(false)
+
+  const toggleRowLib = (id) => {
+    setSelectedLib(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllLib = () => {
+    if (libAllSelected) {
+      setSelectedLib([])
+      setLibAllSelected(false)
+    } else {
+      const allIds = (library || []).map(q => q.id)
+      setSelectedLib(allIds)
+      setLibAllSelected(true)
+    }
+  }
+
+
+  const [statsMap, setStatsMap] = useState({})
+
+
+  // Stato per ordinamento e filtri Libreria  10/09/2025 e 15/09/25
+  const [libSort, setLibSort] = useState({ key: 'created_at', dir: 'desc' })
+  const [libFilters, setLibFilters] = useState({ 
+    quizName: '', 
+    created_at: '', 
+    domandeCount: '',
+    attempts: '',
+    correct_pct: '',
+    best_time_sec: '', 
+  })
+
+
+  // Stato per ordinamento e filtri Storico  10/09/2025 e 15/09/25
+  const [histSort, setHistSort] = useState({ key: 'data', dir: 'desc' })
+  const [histFilters, setHistFilters] = useState({
+    data: '',
+    quizName: '',
+    oraInizio: '',
+    oraFine: '',
+    durata: '',
+    domandeTotali: '',
+    domandeConcluse: '',
+    roundUsati: '',
+    timerDescrizione: '',
+    utente: ''
+  })
+
+
+
 
   //useEffect(() => {
   //  const saved = localStorage.getItem('quizHistory')
@@ -114,146 +208,124 @@ useEffect(() => {
   //  localStorage.setItem('quizHistory', JSON.stringify(newList))
   //}
 
-  // --------- Caricamento domande da Excel ----------
-  const handleExcel = async (file) => {
-    if (!file) return
-    const buf = await file.arrayBuffer()
-    const wb = XLSX.read(buf)
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
-    /**
-     * Assunzione struttura Excel (come versione originale):
-     * Colonne: "Domanda", "Risposta1", "Risposta2", "Risposta3", "Risposta4", "Corretta"
-     * Dove "Corretta" è un numero 1..4
-     */
-    const parsed = rows
-      .map((r, idx) => {
-        const domanda = r.Domanda?.toString().trim()
-        const r1 = r.Risposta1?.toString().trim()
-        const r2 = r.Risposta2?.toString().trim()
-        const r3 = r.Risposta3?.toString().trim()
-        const r4 = r.Risposta4?.toString().trim()
-        const correttaNum = Number(r.Corretta)
 
-        
+  //caricamento file excel multipli e senza estensione  // 👈 10/09/25
+  // Estrae il nome base senza estensione
+  const getBaseName = (filename) => {
+    if (!filename) return ''
+    const lastDot = filename.lastIndexOf('.')
+    return lastDot > 0 ? filename.slice(0, lastDot) : filename
+  }
 
-        if (!domanda || !r1 || !r2 || !r3 || !r4 || ![1,2,3,4].includes(correttaNum)) {
-          return null
-        }
+  // Nuovo handler multi-file
+  const handleExcelFiles = async (fileList) => {
+    if (!fileList || fileList.length === 0) return
 
-        return {
-          id: idx + 1,
-          domanda,
-          risposte: [r1, r2, r3, r4],
-          corretta: correttaNum
-        }
-      })
-      .filter(Boolean)
-
-    console.log("Parsed domande:", parsed)  
-
-    if (!parsed.length) {
-      alert('Excel non valido o vuoto. Assicurati delle intestazioni: Domanda, Risposta1..4, Corretta (1-4).')
+    // se 1 solo file → flusso come prima ma con nome di default = nome file
+    if (fileList.length === 1) {
+      await handleSingleExcel(fileList[0])
       return
     }
 
-    // 👇 chiedi nome quiz
-
-    // Manteniamo anche il localStorage come backup locale (Modif il 09/09/2025)
-    //const fileKey = `quizFile_${name}`
-    //localStorage.setItem(fileKey, JSON.stringify(parsed))
-
-    //setQuizName(name)
-    //setDomande(parsed)
-    //setInQuiz(true)
-    // script modificato con questo sotto
-
-// === NOME QUIZ con scelta su conflitto ===
-let rawName = prompt("Inserisci un nome per il quiz:")
-if (!rawName) {
-  alert("Nome quiz obbligatorio.")
-  return
-}
-let cleanedName = rawName.trim()
-if (!cleanedName) {
-  alert("Nome quiz non valido.")
-  return
-}
-
-// ciclo: se esiste già, chiedi se sovrascrivere o rinominare
-while (true) {
-  const { data: existing, error: checkErr } = await supabase
-    .from("quiz_files")
-    .select("id")
-    .eq("quizName", cleanedName)
-    .maybeSingle()
-
-  if (checkErr) {
-    console.error("Errore controllo esistenza quiz:", checkErr)
-    alert("Errore durante il controllo nome quiz.")
-    return
-  }
-
-  if (existing) {
-    const overwrite = window.confirm(
-      `Esiste già un quiz chiamato "${cleanedName}".\n\n` +
-      `👉 Premi OK per SOVRASCRIVERE il contenuto del quiz esistente.\n` +
-      `👉 Premi ANNULLA per inserire un NOME DIVERSO.`
-    )
-    if (overwrite) {
-      break // usiamo questo nome e sovrascriviamo
-    } else {
-      const nuovo = window.prompt("Inserisci un nome diverso:")
-      if (!nuovo) {
-        alert("Operazione annullata.")
-        return
-      }
-      cleanedName = nuovo.trim()
-      if (!cleanedName) {
-        alert("Nome non valido.")
-        return
-      }
-      // ripete il while con il nuovo nome
-      continue
+    // multi-upload: processiamo in sequenza, ogni file prende il nome file (default)
+    let ok = 0, fail = 0
+    for (const file of fileList) {
+      const res = await handleSingleExcel(file, { forceDefaultName:true })
+      if (res) ok++; else fail++;
     }
-  } else {
-    // nome libero
-    break
-  }
-}
-
-// === SALVA/AGGIORNA IN SUPABASE, SENZA AVVIARE IL QUIZ ===
-try {
-  const { error } = await supabase
-    .from("quiz_files")
-    .upsert(
-      [{ quizName: cleanedName, questions: parsed }],
-      { onConflict: "quizName" } // se esiste già, aggiorna
-    )
-
-  if (error) {
-    console.error("Errore salvataggio quiz in Supabase:", error)
-    alert("Errore salvataggio quiz in Supabase: " + (error.message || ""))
-    return
+    alert(`Import completato.\nCaricati: ${ok}\nErrori: ${fail}`)
+    await reloadLibraryFromSupabase()
   }
 
-      // opzionale: mantieni una copia locale come backup + su supabase
-      const fileKey = `quizFile_${cleanedName}`
-      localStorage.setItem(fileKey, JSON.stringify(parsed))
+  // Elabora un singolo file Excel → salva in quiz_files con nome (default o modificabile)
+  const handleSingleExcel = async (file, opts = {}) => {
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
-      alert(`Quiz "${cleanedName}" caricato/aggiornato in Libreria (Supabase).`)
+      const parsed = rows
+        .map((r, idx) => {
+          const domanda = r.Domanda?.toString().trim()
+          const r1 = r.Risposta1?.toString().trim()
+          const r2 = r.Risposta2?.toString().trim()
+          const r3 = r.Risposta3?.toString().trim()
+          const r4 = r.Risposta4?.toString().trim()
+          const correttaNum = Number(r.Corretta)
+          if (!domanda || !r1 || !r2 || !r3 || !r4 || ![1,2,3,4].includes(correttaNum)) return null
+          return { id: idx + 1, domanda, risposte: [r1, r2, r3, r4], corretta: correttaNum }
+        })
+        .filter(Boolean)
 
-      // ⚠️ NON avviamo il quiz: niente setDomande / setInQuiz(true)
+      if (!parsed.length) {
+        alert(`"${file.name}": Excel non valido o vuoto.`)
+        return false
+      }
+
+      // Nome default = nome file senza estensione
+      let cleanedName = getBaseName(file.name).trim()
+
+      if (!opts.forceDefaultName) {
+        // Chiedi se mantenere il nome file o inserire manualmente
+        const useDefault = window.confirm(
+          `Usare il nome del file come nome quiz?\n\nProposto: "${cleanedName}"\n\nOK = usa questo nome\nAnnulla = inserisci manualmente`
+        )
+        if (!useDefault) {
+          const manual = window.prompt("Inserisci il nome del quiz:", cleanedName)
+          if (!manual) { alert("Operazione annullata."); return false }
+          cleanedName = manual.trim()
+          if (!cleanedName) { alert("Nome non valido."); return false }
+        }
+      }
+
+      // Controllo conflitti + upsert
+      while (true) {
+        const { data: existing, error: checkErr } = await supabase
+          .from("quiz_files")
+          .select("id")
+          .eq("quizName", cleanedName)
+          .maybeSingle()
+        if (checkErr) { alert("Errore controllo nome quiz."); return false }
+
+        if (existing) {
+          const overwrite = window.confirm(
+            `Esiste già "${cleanedName}".\n\nOK = SOVRASCRIVI\nAnnulla = scegli un altro nome`
+          )
+          if (overwrite) break
+          const nuovo = window.prompt("Nuovo nome quiz:", cleanedName + " (2)")
+          if (!nuovo) { alert("Operazione annullata."); return false }
+          cleanedName = nuovo.trim()
+          if (!cleanedName) { alert("Nome non valido."); return false }
+          continue
+        } else break
+      }
+
+      const { error } = await supabase
+        .from("quiz_files")
+        .upsert([{ quizName: cleanedName, questions: parsed }], { onConflict: "quizName" })
+
+      if (error) {
+        console.error("Errore salvataggio quiz:", error)
+        alert(`Errore salvataggio "${cleanedName}": ` + (error.message || ""))
+        return false
+      }
+
+      localStorage.setItem(`quizFile_${cleanedName}`, JSON.stringify(parsed))
+      console.log(`Quiz "${cleanedName}" caricato/aggiornato.`)
+      return true
     } catch (e) {
       console.error(e)
-      alert("Errore imprevisto nel salvataggio del quiz.")
+      alert(`Errore import di "${file?.name || 'file'}"`)
+      return false
     }
-
-
   }
 
-//
+
+  
+
+
 
   // --------- Caricamento domande via API (backend Flask) ----------
   const handleLoadFromApi = async () => {
@@ -299,8 +371,25 @@ try {
   //}
 
   const handleQuizFinish = async (summary) => {
+
+      // Recupera l'id del quiz da quiz_files
+    let quiz_id = null
+    try {
+      const { data: qrow } = await supabase
+        .from("quiz_files")
+        .select("id")
+        .eq("quizName", quizName)
+        .maybeSingle()
+      quiz_id = qrow?.id || null
+    } catch (e) {
+      console.error("Errore recupero quiz_id:", e)
+    }
+
+
+
     // Prepara il record da salvare
     const record = {
+      quiz_id,
       quizName,
       data: new Date().toISOString().split("T")[0],
       oraInizio: summary.oraInizio || "",
@@ -432,7 +521,7 @@ try {
 
 
 
-// Rileggi lo storico da Supabase on-demand
+ // Rileggi lo storico da Supabase on-demand
   const reloadHistoryFromSupabase = async () => {
     try {
       const { data, error } = await supabase
@@ -625,7 +714,7 @@ try {
   const reloadLibraryFromSupabase = async () => {
     try {
       setLibraryLoading(true)
-      const { data, error } = await supabase
+      const { data: files, error } = await supabase
         .from('quiz_files')
         .select('id, quizName, created_at, questions')   // 👈 aggiunto id 09/09/25
         .order('created_at', { ascending: false })
@@ -635,14 +724,38 @@ try {
         window.alert('Errore libreria: ' + (error.message || ''))
         return
       }
+
+      // 👇 nuova query per leggere le statistiche
+      const { data: stats, error: e2 } = await supabase
+        .from('quiz_stats')
+        .select('*')
+      if (e2) {
+        console.error('Errore caricamento quiz_stats:', e2)
+        window.alert('Errore statistiche: ' + (e2.message || ''))
+      }
+
+      const map = {}
+      ;(stats || []).forEach(s => { map[s.quiz_id] = s })
+      setStatsMap(map)
+
+
+
+
       // normalizza: domandeCount per colonna
-      const rows = (data || []).map(r => ({
-        id: r.id,                                          // 👈 aggiunto 09/09/25
-        quizName: r.quizName,
-        created_at: r.created_at,
-        questions: r.questions,
-        domandeCount: Array.isArray(r.questions) ? r.questions.length : 0
-      }))
+  const rows = (files || []).map(r => {
+    const st = map[r.id] || {}
+    return {
+      id: r.id,
+      quizName: r.quizName,
+      created_at: r.created_at,
+      questions: r.questions,
+      domandeCount: Array.isArray(r.questions) ? r.questions.length : 0,
+      attempts: Number(st.attempts ?? 0),              // 👈 forza numero
+      correct_pct: Number(st.correct_pct ?? 0),        // 👈 forza numero
+      best_time_sec: Number(st.best_time_sec ?? 0),    // 👈 forza numero
+    }
+  })
+      
       setLibrary(rows)
     } catch (e) {
       console.error('Errore libreria:', e)
@@ -839,9 +952,13 @@ try {
   }
 
 
+  const [freeAnswerMode, setFreeAnswerMode] = useState(false)
+  const [freeAnswerThreshold, setFreeAnswerThreshold] = useState(0.85) // soglia similitudine 0..1
+
   // --------- UI ----------
   // --------- UI ----------
   // --------- UI ----------
+  // renderizza il quiz
   if (inQuiz && domande) {
     return (
       <div style={{ padding: '1rem' }}>
@@ -858,11 +975,201 @@ try {
           onQuit={handleQuitToHome}             // uscita alla dashboard
           randomDomande={randomDomande}
           randomRisposte={randomRisposte}
+          freeAnswerMode={freeAnswerMode}             // 👈 nuovo prop
+          freeAnswerThreshold={freeAnswerThreshold}   // 👈 nuovo prop
         />
       </div>
     )
   }
 
+
+
+ // Applica filtri colonne e ordinamento alla Libreria 10/09/2025
+// Libreria filtrata e ordinata 12/09/2025
+// Libreria filtrata e ordinata 12/09/2025 - FIX per statistiche
+  const libraryFilteredSorted = library
+    .filter(r => {
+      const st = statsMap[r.id] || {} // 👈 aggiungi le statistiche qui nel filtro
+      const f1 = libFilters.quizName ? (r.quizName||'').toLowerCase().includes(libFilters.quizName.toLowerCase()) : true
+      const f2 = libFilters.created_at ? (r.created_at||'').slice(0,10).includes(libFilters.created_at) : true
+      const f3 = libFilters.domandeCount ? String(r.domandeCount).includes(libFilters.domandeCount) : true
+      const f4 = libFilters.attempts ? String(st.attempts || 0).includes(libFilters.attempts) : true // 👈 FIX: usa st.attempts
+      const f5 = libFilters.correct_pct ? String(st.correct_pct || 0).includes(libFilters.correct_pct) : true // 👈 FIX: usa st.correct_pct
+      const f6 = libFilters.best_time_sec ? String(st.best_time_sec || 0).includes(libFilters.best_time_sec) : true // 👈 FIX: usa st.best_time_sec
+      return f1 && f2 && f3 && f4 && f5 && f6
+    })
+    .sort((a,b) => {
+      const { key, dir } = libSort
+      if (!key) return 0
+      
+      // 👈 FIX: per le colonne delle statistiche, prendi i dati da statsMap
+      let va, vb
+      if (key === 'attempts') {
+        va = (statsMap[a.id] || {}).attempts || 0
+        vb = (statsMap[b.id] || {}).attempts || 0
+      } else if (key === 'correct_pct') {
+        va = (statsMap[a.id] || {}).correct_pct || 0
+        vb = (statsMap[b.id] || {}).correct_pct || 0
+      } else if (key === 'best_time_sec') {
+        va = (statsMap[a.id] || {}).best_time_sec || 0
+        vb = (statsMap[b.id] || {}).best_time_sec || 0
+      } else {
+        // per le altre colonne usa il comportamento originale
+        va = a[key]
+        vb = b[key]
+      }
+      
+      if (va == null && vb != null) return dir==='asc' ? -1 : 1
+      if (va != null && vb == null) return dir==='asc' ? 1 : -1
+      if (va == null && vb == null) return 0
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return dir==='asc' ? va - vb : vb - va
+      }
+      return dir==='asc'
+        ? String(va).localeCompare(String(vb))
+        : String(vb).localeCompare(String(va))
+    })
+
+    // Helper per header con click ordinamento libreria 10/09/2025
+    const headerCell = (label, key, width) => (
+      <th
+        style={{ ...th, width: width || 'auto' }}   // 👈 aggiunto come in headerCellHistory
+        onClick={() => {
+          setLibSort(s => {
+            if (s.key !== key) return { key, dir: 'asc' }
+            return { key, dir: s.dir === 'asc' ? 'desc' : (s.dir === 'desc' ? null : 'asc') }
+          })
+        }}
+      >
+        {label}{' '}
+        {libSort.key === key ? (libSort.dir === 'asc' ? '↑' : (libSort.dir === 'desc' ? '↓' : '')) : ''}
+      </th>
+    )
+
+
+  // Applica filtri e ordinamento allo Storico  10/09/2025
+  const historyFilteredSorted = history
+    .filter(r => {
+      const f = histFilters
+      const match = (val, filter) =>
+        !filter || (val || '').toString().toLowerCase().includes(filter.toLowerCase())
+      return (
+        match(r.data, f.data) &&
+        match(r.quizName, f.quizName) &&
+        match(r.oraInizio, f.oraInizio) &&
+        match(r.oraFine, f.oraFine) &&
+        match(r.durata, f.durata) &&
+        match(r.domandeTotali, f.domandeTotali) &&
+        match(r.domandeConcluse, f.domandeConcluse) &&
+        match(r.roundUsati, f.roundUsati) &&
+        match(r.timerDescrizione, f.timerDescrizione) &&
+        match(r.utente || r.userEmail, f.utente)
+      )
+    })
+    .sort((a, b) => {
+      const { key, dir } = histSort
+      if (!key) return 0
+      const va = a[key], vb = b[key]
+      if (va == null && vb != null) return dir === 'asc' ? -1 : 1
+      if (va != null && vb == null) return dir === 'asc' ? 1 : -1
+      if (va == null && vb == null) return 0
+      if (va < vb) return dir === 'asc' ? -1 : 1
+      if (va > vb) return dir === 'asc' ? 1 : -1
+      return 0
+    })
+
+  // Helper per header della tabella Storico  10/09/2025
+  const headerCellHistory = (label, key, width) => (
+    <th
+      style={{ ...th, width: width || 'auto' }}
+      onClick={()=>{
+        setHistSort(s => {
+          if (s.key !== key) return { key, dir:'asc' }
+          return { key, dir: s.dir==='asc' ? 'desc' : (s.dir==='desc' ? null : 'asc') }
+        })
+      }}
+    >
+      {label} {histSort.key===key ? (histSort.dir==='asc'?'↑':(histSort.dir==='desc'?'↓':'')) : ''}
+    </th>
+  )
+
+
+      // Converte "HH:MM:SS" in secondi
+      function parseDuration(durata) {
+        if (!durata) return null
+        const parts = durata.split(':').map(Number)
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        if (parts.length === 2) return parts[0] * 60 + parts[1]
+        return parts[0] || 0
+      }
+
+
+
+  // nella LIbreria
+  // Colore graduale per % Esecuzioni corrette (0 = rosso, 100 = verde)
+  function getPercentColor(pct) {
+    if (pct == null) return 'transparent'
+    const val = Math.max(0, Math.min(100, pct)) / 100 // normalizza 0..1
+    const r = Math.round(255 * (1 - val))   // da rosso a verde
+    const g = Math.round(255 * val)
+    return `rgb(${r},${g},0)`
+  }
+
+  function getPercentTextColor(pct) {
+    if (pct == null) return 'inherit'
+    return pct < 50 ? 'white' : 'black'
+  }
+
+
+
+  // nella modale    
+  // Calcola colore graduale rosso ↔ verde solo per esecuzioni complete
+  function getDurationColor(durata, rows) {
+    const values = rows
+      .filter(r => r.domandeTotali === r.domandeConcluse)
+      .map(r => parseDuration(r.durata))
+      .filter(v => v != null)
+
+    if (values.length === 0) return 'transparent'
+
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const val = parseDuration(durata)
+
+    if (val == null) return 'transparent'
+    if (max === min) return 'lightgreen'
+
+    const ratio = (val - min) / (max - min) // 0 = verde, 1 = rosso
+    const r = Math.round(255 * ratio)
+    const g = Math.round(255 * (1 - ratio))
+    return `rgb(${r},${g},0)`
+  }
+
+  function getDurationTextColor(durata, rows) {
+    const values = rows
+      .filter(r => r.domandeTotali === r.domandeConcluse)
+      .map(r => parseDuration(r.durata))
+      .filter(v => v != null)
+
+    if (values.length === 0) return 'inherit'
+
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const val = parseDuration(durata)
+
+    if (val == null) return 'inherit'
+    if (max === min) return 'black'
+
+    const ratio = (val - min) / (max - min) // 0 = verde, 1 = rosso
+    return ratio > 0.5 ? 'white' : 'black'
+  }
+
+
+
+
+
+
+  //return principale o secondo (BOH?) della dashboard
   return (
     <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -923,16 +1230,19 @@ try {
             📄 Carica Excel (.xlsx)
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls, xlsm" // 👈 modifica del 10/09/25
+              multiple                  // 👈 modifica del 10/09/25
               style={{ display:'none' }}
-              onChange={(e) => handleExcel(e.target.files?.[0])}
+              //onChange={(e) => handleExcelFiles(e.target.files?.[0])} // 👈 modifica del 10/09/25
+              onChange={(e) => handleExcelFiles(e.target.files)} // 👈 2a modifica del 10/09/25
             />
           </label>
 
           <button onClick={handleLoadFromApi}>🌐 Usa API backend</button>
       
 
-        {/* Pulsanti random */}
+
+        {/* Pulsanti ON OFF random */}
           <button
             onClick={() => setRandomDomande(prev => !prev)}
             style={{ background: randomDomande ? '#4caf50' : '#ccc', padding:'0.5rem 1rem', borderRadius:'6px' }}
@@ -946,6 +1256,29 @@ try {
           >
             Risposte {randomRisposte ? '🔀 ON' : '➡️ OFF'}
           </button>
+          
+          {/* Pulsante ON OFF nascondi risposte */}
+          <button
+            onClick={() => setFreeAnswerMode(prev => !prev)}
+            style={{ background: freeAnswerMode ? '#4caf50' : '#ccc', padding:'0.5rem 1rem', borderRadius:'6px' }}
+            title="Modalità risposta aperta (nasconde opzioni)"
+          >
+            Risposta aperta {freeAnswerMode ? '📝 ON' : '✖ OFF'}
+          </button>
+
+          {freeAnswerMode && (
+            <label title="Soglia di similitudine per considerare una risposta corretta">
+              Soglia:{' '}
+              <input
+                type="number"
+                step="0.01"
+                min="0.5" max="1"
+                value={freeAnswerThreshold}
+                onChange={(e) => setFreeAnswerThreshold(Math.min(1, Math.max(0.5, Number(e.target.value)||0.85)))}
+                style={{ width: '80px' }}
+              />
+            </label>
+          )}
         </div>
 
 
@@ -954,6 +1287,8 @@ try {
         </p>
       </section>
 
+
+      {/* PULSANTI migrazione e diagnostica */}
 
       <button onClick={migrateLocalHistory} style={{ marginBottom: '1rem' }}>
         ⬆️ Migra storico locale su Supabase
@@ -967,95 +1302,199 @@ try {
         📤 Migra quizFile locali su Supabase
       </button>
 
+      <button onClick={diagnoseSupabase} style={{ marginBottom:'0.75rem' }}>
+        🧪 Diagnostica Supabase
+      </button>
+
+      <button onClick={diagnoseLibrary} style={{ marginBottom:'0.75rem' }}>
+        🧪 Diagnostica Libreria
+      </button>
+
+
+
+
+
       {/* PULSANTI BUTTONS */}
       {/* Libreria Quiz (fonte: quiz_files) */}
       <section style={{ marginBottom: '1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <h3>Libreria Quiz</h3>
-          <button onClick={diagnoseSupabase} style={{ marginBottom:'0.75rem' }}>
-            🧪 Diagnostica Supabase
-          </button>
+
           <button onClick={reloadLibraryFromSupabase}>
             {libraryLoading ? 'Carico…' : '🔄 Aggiorna Libreria'}
           </button>
         </div>
 
-          <button onClick={diagnoseLibrary} style={{ marginBottom:'0.75rem' }}>
-            🧪 Diagnostica Libreria
-          </button>
 
+
+
+        {/* TABELLA LIBRERIA */}
         {library.length === 0 ? (
           <p style={{ color:'#666' }}>
             Nessun quiz in libreria. Carica un file Excel per aggiungerne, poi premi “🔄 Aggiorna Libreria”.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse:'collapse', width:'100%' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={th}>Data</th>
-                  <th style={th}>Quiz</th>
-                  <th style={th}>Domande</th>
-                  <th style={th}>Azioni</th>
+                  <th style={{ ...th, width: '50px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={libAllSelected}             // ✅ stato globale “tutti selezionati”
+                      onChange={toggleSelectAllLib}        // ✅ funzione globale
+                      title="Seleziona/Deseleziona tutto"
+                    />
+                    <div style={{ fontSize:'0.8rem', marginTop:'0.25rem' }}>Sel.</div>
+                  </th>
+                  {headerCell('Data', 'created_at', '90px')}
+                  {headerCell('Quiz', 'quizName')}
+                  {headerCell('Domande', 'domandeCount', '80px')}
+                  {headerCell('Esecuzioni', 'attempts', '80px')}
+                  {headerCell('% Esecuzioni corrette', 'correct_pct', '80px')}
+                  {headerCell('Best time', 'best_time_sec', '80px')}
+                  <th style={{ ...th, width: '210px' }}>Azioni</th>
+                </tr>
+
+                {/* FILTRI TABELLA LIBRERIA */}
+                <tr>
+                  <td style={td}></td> {/* Sel. */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={libFilters.created_at} onChange={e=>setLibFilters({...libFilters, created_at:e.target.value})} placeholder="aaaa-mm-gg" /></td> {/* Data */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'left', boxSizing: 'border-box' }} value={libFilters.quizName} onChange={e=>setLibFilters({...libFilters, quizName:e.target.value})} placeholder="nome quiz" /></td> {/* Quiz */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={libFilters.domandeCount} onChange={e=>setLibFilters({...libFilters, domandeCount:e.target.value})} placeholder="n°" /></td> {/* domande */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={libFilters.attempts} onChange={e=>setLibFilters({...libFilters, attempts:e.target.value})} placeholder="n°" /></td> {/* Esecuzioni */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={libFilters.correct_pct} onChange={e=>setLibFilters({...libFilters, correct_pct:e.target.value})} placeholder="%" /></td> {/* % Esecuzioni corrette */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={libFilters.best_time_sec} onChange={e=>setLibFilters({...libFilters, best_time_sec:e.target.value})} placeholder="best" /></td> {/* Best time */}
+                  <td style={td}></td> {/* Azioni */}
                 </tr>
               </thead>
+
+              {/* CONTENUTO TABELLA LIBRERIA */}
               <tbody>
-                {library.map((q, i) => (
-                  <tr key={i}>
-                    <td style={td}>{q.created_at?.slice(0,10) || '-'}</td>
-                    <td style={td}>{q.quizName}</td>
-                    <td style={td}>{q.domandeCount}</td>
-                    <td style={td}>
-                      {/* Anteprima 👁️ */}
-                      <button
-                        onClick={() => {
-                          if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
-                          setPreviewQuiz({ name: q.quizName, questions: q.questions })
-                          setPreviewOpen(true)
+                {libraryFilteredSorted.map((q, i) => {
+                  const st = statsMap[q.id]   // 👈 recupera le statistiche
+                  return (
+                    <tr key={q.id}>
+                      <td style={{ ...td, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLib.includes(q.id)}      // ✅ stato libreria
+                          onChange={() => toggleRowLib(q.id)}      // ✅ funzione libreria
+                        />
+                      </td>
+                      <td style={{ ...td, textAlign: 'center' }}>{q.created_at?.slice(0,10)}</td>
+                      <td style={{ ...td, textAlign: 'left' }}>{q.quizName}</td>  {/* 👈 quiz allineato a sinistra */}
+                      <td style={{ ...td, textAlign: 'center' }}>{q.domandeCount}</td>
+                      <td style={{ ...td, textAlign: 'center' }}>{st?.attempts ?? 0}</td>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: 'center',
+                          backgroundColor: st?.correct_pct != null ? getPercentColor(st.correct_pct) : 'transparent',
+                          color: st?.correct_pct != null ? getPercentTextColor(st.correct_pct) : 'inherit',
                         }}
-                        title="Anteprima"
-                        style={{ marginRight: '0.5rem' }}
                       >
-                        👁️
-                      </button>
+                        {st?.correct_pct != null ? `${st.correct_pct}%` : '-'}
+                      </td>
+                      <td style={{ ...td, textAlign: 'center' }}>{st?.best_time_sec != null ? formatHMS(st.best_time_sec) : '-'}</td>
+                      <td style={{ ...td, textAlign: 'right' }}>
+                        
 
-                      {/* Start ▶️ */}
-                      <button
-                        onClick={() => {
-                          if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
-                          setQuizName(q.quizName)
-                          setDomande(q.questions)
-                          setInQuiz(true)
-                        }}
-                        title="Avvia quiz"
-                        style={{ marginRight: '0.5rem' }}
-                      >
-                        ▶️
-                      </button>
+                        {/* bottoni azioni */}
+                        {/* Statistiche 📊 */}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase
+                                .from('quiz_history')
+                                .select('*')
+                                .eq('quiz_id', q.id)   // usa id
+                                .order('created_at', { ascending: false })
+                              if (error) throw error
+                              // Apri una modale semplice con la tabella history filtrata (puoi riusare la UI dello Storico o un overlay simile all’Anteprima)
+                              setPreviewQuiz({ name: `Statistiche — ${q.quizName}`, questions: [] })
+                              // Qui puoi salvare in uno stato dedicato (es. statsModalRows) e mostrare
+                              setStatsModalRows(data || [])
+                              setStatsModalOpen(true)
+                            } catch (e) {
+                              console.error(e); alert("Errore apertura statistiche.")
+                            }
+                          }}
+                          title="Statistiche"
+                          style={{ marginRight:'0.5rem' }}
+                        >
+                          📊
+                        </button>
+                        {/* Anteprima 👁️ */}
+                        <button
+                          onClick={() => {
+                            if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
+                            setPreviewQuiz({ name: q.quizName, questions: q.questions })
+                            setPreviewOpen(true)
+                          }}
+                          title="Anteprima"
+                          style={{ marginRight: '0.5rem' }}
+                        >
+                          👁️
+                        </button>
 
-                      {/* Rinomina ✏️ */}
-                      <button
-                        onClick={() => renameLibraryQuiz(i)}
-                        title="Rinomina quiz"
-                        style={{ marginRight: '0.5rem' }}
-                      >
-                        ✏️
-                      </button>
+                        {/* Start ▶️ */}
+                        <button
+                          onClick={() => {
+                            if (!q.questions?.length) { window.alert('Nessuna domanda.'); return }
+                            setQuizName(q.quizName)
+                            setDomande(q.questions)
+                            setInQuiz(true)
+                          }}
+                          title="Avvia quiz"
+                          style={{ marginRight: '0.5rem' }}
+                        >
+                          ▶️
+                        </button>
+
+                        {/* Rinomina ✏️ */}
+                        <button
+                          onClick={() => renameLibraryQuiz(i)}
+                          title="Rinomina quiz"
+                          style={{ marginRight: '0.5rem' }}
+                        >
+                          ✏️
+                        </button>
 
 
-                      {/* Elimina 🗑️ */}
-                      <button
-                        onClick={() => deleteLibraryQuiz(i)}
-                        title="Elimina quiz dalla Libreria"
-                        style={{ color:'red' }}
-                      >
-                        🗑️
-                      </button>
+                        {/* Elimina 🗑️ sia per 1 quiz che per più quiz selezionati 12/09/2025*/}
+                        <button
+                          onClick={async () => {
+                            if (selectedLib.length === 0) {
+                              alert("Seleziona almeno un quiz da eliminare.");
+                              return;
+                            }
+                            if (!window.confirm(`Vuoi eliminare ${selectedLib.length} quiz selezionati?`)) return;
 
+                            try {
+                              const { error } = await supabase
+                                .from("quiz_files")
+                                .delete()
+                                .in("id", selectedLib);
 
-                    </td>
-                  </tr>
-                ))}
+                              if (error) throw error;
+                              alert("Eliminazione completata.");
+                              setSelectedLib([]);
+                              setLibAllSelected(false);
+                              await reloadLibraryFromSupabase();
+                            } catch (e) {
+                              console.error(e);
+                              alert("Errore durante l'eliminazione.");
+                            }
+                          }}
+                          title="Elimina quiz selezionati"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -1064,43 +1503,94 @@ try {
 
 
 
-      {/* Storico */}
+
+      {/* Storico //modif 10/09/25*/}  
       <section>
         <h3>Storico Quiz</h3>
         {history.length === 0 ? (
           <p style={{ color:'#666' }}>Nessun tentativo ancora registrato.</p>
         ) : (
           <div style={{ overflowX:'auto' }}>
-            <table style={{ borderCollapse:'collapse', width:'100%' }}>
-              <thead>
+            <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+              <thead>   
                 <tr>
-                  <th style={th}>Data</th>
-                  <th style={th}>Quiz</th>
-                  <th style={th}>Ora Inizio</th>
-                  <th style={th}>Ora Fine</th>
-                  <th style={th}>Durata</th>
-                  <th style={th}>Domande</th>
-                  <th style={th}>Apprese</th>
-                  <th style={th}>Round</th>
-                  <th style={th}>Timer</th>
-                  <th style={th}>Utente</th>
-                  <th style={th}>Azioni</th>
+                  <th style={{ ...th, width: '50px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={histAllSelected}
+                      onChange={toggleSelectAllHist}
+                      title="Seleziona/Deseleziona tutto"
+                    />
+                    <div style={{ fontSize:'0.8rem', marginTop:'0.25rem' }}>Sel.</div>
+                  </th>
+                    {headerCellHistory('Data', 'data', '90px')}
+                    {headerCellHistory('Quiz', 'quizName')}   {/* 👈 senza width → variabile */}
+                    {headerCellHistory('Ora Inizio', 'oraInizio', '70px')}
+                    {headerCellHistory('Ora Fine', 'oraFine', '70px')}
+                    {headerCellHistory('Durata', 'durata', '70px')}
+                    {headerCellHistory('Domande', 'domandeTotali', '60px')}
+                    {headerCellHistory('Apprese', 'domandeConcluse', '60px')}
+                    {headerCellHistory('Round', 'roundUsati', '60px')}
+                    {headerCellHistory('Timer', 'timerDescrizione', '200px')}
+                    {headerCellHistory('Utente', 'utente', '120px')}
+                  <th style={{ ...th, width: '210px' }}>Azioni</th>
+                </tr>
+
+                {/* FILTRI TABELLA STORICO */}
+                <tr>
+                  <td style={td}></td> {/* sel */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.data} onChange={e=>setHistFilters({...histFilters, data:e.target.value})} placeholder="aaaa-mm-gg" /></td> {/* Data */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'left', boxSizing: 'border-box' }} value={histFilters.quizName} onChange={e=>setHistFilters({...histFilters, quizName:e.target.value})} placeholder="nome quiz" /></td> {/* Quiz */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.oraInizio} onChange={e=>setHistFilters({...histFilters, oraInizio:e.target.value})} placeholder="hh:mm" /></td> {/* Ora Inizio */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.oraFine} onChange={e=>setHistFilters({...histFilters, oraFine:e.target.value})} placeholder="hh:mm" /></td> {/* Ora Fine */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.durata} onChange={e=>setHistFilters({...histFilters, durata:e.target.value})} placeholder="00:mm:ss" /></td> {/* Durata */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.domandeTotali} onChange={e=>setHistFilters({...histFilters, domandeTotali:e.target.value})} placeholder="n°" /></td> {/* Domande */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.domandeConcluse} onChange={e=>setHistFilters({...histFilters, domandeConcluse:e.target.value})} placeholder="n°" /></td> {/* Apprese  */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.roundUsati} onChange={e=>setHistFilters({...histFilters, roundUsati:e.target.value})} placeholder="n°" /></td> {/* Round */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.timerDescrizione} onChange={e=>setHistFilters({...histFilters, timerDescrizione:e.target.value})} placeholder="timer" /></td> {/* Timer */}
+                  <td style={td}><input style={{ width: '100%', textAlign: 'center', boxSizing: 'border-box' }} value={histFilters.utente} onChange={e=>setHistFilters({...histFilters, utente:e.target.value})} placeholder="utente" /></td> {/* Utente */}
+                  <td style={td}></td> {/* azioni */}
                 </tr>
               </thead>
               <tbody>
-                {history.map((h, i) => (
-                  <tr key={i}>
-                    <td style={td}>{h.data}</td>
-                    <td style={td}>{h.quizName || '-'}</td>
-                    <td style={td}>{h.oraInizio}</td>
-                    <td style={td}>{h.oraFine}</td>
-                    <td style={td}>{h.durata}</td>
-                    <td style={td}>{h.domandeTotali}</td>
-                    <td style={td}>{h.domandeConcluse}</td>
-                    <td style={td}>{h.roundUsati}</td>
-                    <td style={td}>{h.timerDescrizione}</td>
-                    <td style={td}>{h.userEmail || '-'}</td>
-                    <td style={td}>
+                {historyFilteredSorted.map((h, i) => (
+                  <tr key={h.id}>
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedHist.includes(h.id)}      // ✅ stato storico
+                        onChange={() => toggleRowHist(h.id)}      // ✅ funzione storico
+                      />
+                    </td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.data}</td>
+                    <td style={{ ...td, textAlign: 'left' }}>{h.quizName || '-'}</td> {/* 👈 quiz allineato a sinistra */}
+                    <td style={{ ...td, textAlign: 'center' }}>{h.oraInizio}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.oraFine}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.durata}</td>
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: 'center',
+                        backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                        color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                      }}
+                    >
+                      {h.domandeTotali}
+                    </td>
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: 'center',
+                        backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                        color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                      }}
+                    >
+                      {h.domandeConcluse}
+                    </td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.roundUsati}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.timerDescrizione}</td>
+                    <td style={{ ...td, textAlign: 'center' }}>{h.utente}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>
                       <button
                         onClick={() => openPreview(h)}
                         title="Anteprima"
@@ -1151,13 +1641,35 @@ try {
                       </button>
                       <button
                         onClick={() => renameHistoryEntry(i)}
-                        style={{ marginLeft: '0.5rem' }}
+                        style={{ marginRight: '0.5rem' }}
                       >
                         ✏️
                       </button>
                       <button
-                        onClick={() => deleteHistoryEntry(i)}
-                        style={{ color: 'red', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        onClick={async () => {
+                          if (selectedHist.length === 0) {
+                            alert("Seleziona almeno un record da eliminare.");
+                            return;
+                          }
+                          if (!window.confirm(`Vuoi eliminare ${selectedHist.length} record selezionati dallo storico?`)) return;
+
+                          try {
+                            const { error } = await supabase
+                              .from("quiz_history")
+                              .delete()
+                              .in("id", selectedHist);
+
+                            if (error) throw error;
+                            alert("Eliminazione completata.");
+                            setSelectedHist([]);
+                            setHistAllSelected(false);
+                            await reloadHistoryFromSupabase();
+                          } catch (e) {
+                            console.error(e);
+                            alert("Errore durante l'eliminazione.");
+                          }
+                        }}
+                        title="Elimina record selezionati"
                       >
                         🗑️
                       </button>
@@ -1175,6 +1687,96 @@ try {
       <button onClick={addTestRecord} style={{ marginBottom: '1rem' }}>
          ➕ Aggiungi record di test
       </button> */}
+
+
+
+
+
+
+      {/* MODALE */}
+      {statsModalOpen && (
+          <div style={{
+            position:'fixed', top:0, left:0, right:0, bottom:0,
+            background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
+          }}>
+            <div style={{ background:'#fff', padding:'1rem', borderRadius:8, width:'95%', maxWidth:'1200px', maxHeight:'90%', overflow:'auto' }}>
+              <h2>{statsModalTitle}</h2>
+              
+              {/* 👇 qui richiami lo stesso blocco tabella usato nello Storico */}
+              <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+                <thead>
+                  <tr>
+                    {headerCellHistory('Data', 'data', '90px')}
+                    {headerCellHistory('Quiz', 'quizName')}   {/* 👈 senza width → variabile */}
+                    {headerCellHistory('Ora Inizio', 'oraInizio', '70px')}
+                    {headerCellHistory('Ora Fine', 'oraFine', '70px')}
+                    {headerCellHistory('Durata', 'durata', '70px')}
+                    {headerCellHistory('Domande', 'domandeTotali', '60px')}
+                    {headerCellHistory('Apprese', 'domandeConcluse', '60px')}
+                    {headerCellHistory('Round', 'roundUsati', '60px')}
+                    {headerCellHistory('Timer', 'timerDescrizione', '200px')}
+                    {headerCellHistory('Utente', 'utente', '120px')}
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsModalRows.map((h, i) => (
+                    <tr key={i}>
+                      <td style={{ ...td, textAlign: 'center' }}>{h.data}</td>
+                      <td style={{ ...td, textAlign: 'left' }}>{h.quizName || '-'}</td> {/* 👈 quiz allineato a sinistra */}
+                      <td style={{ ...td, textAlign: 'center' }}>{h.oraInizio}</td>
+                      <td style={{ ...td, textAlign: 'center' }}>{h.oraFine}</td>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: 'center',
+                          backgroundColor:
+                            h.domandeTotali === h.domandeConcluse
+                              ? getDurationColor(h.durata, statsModalRows)
+                              : 'transparent',
+                          color:
+                            h.domandeTotali === h.domandeConcluse
+                              ? getDurationTextColor(h.durata, statsModalRows)
+                              : 'inherit',
+                        }}
+                      >
+                        {h.durata}
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: 'center',
+                          backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                          color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                        }}
+                      >
+                        {h.domandeTotali}
+                      </td>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: 'center',
+                          backgroundColor: h.domandeTotali === h.domandeConcluse ? 'lightgreen' : 'red',
+                          color: h.domandeTotali === h.domandeConcluse ? 'black' : 'white',
+                        }}
+                      >
+                        {h.domandeConcluse}
+                      </td>
+                      <td style={{ ...td, textAlign: 'center' }}>{h.roundUsati}</td>
+                      <td style={{ ...td, textAlign: 'center' }}>{h.timerDescrizione}</td>
+                      <td style={{ ...td, textAlign: 'center' }}>{h.utente}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ marginTop:'1rem', textAlign:'right' }}>
+                <button onClick={() => setStatsModalOpen(false)}>Chiudi</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+
 
 
       {/* overlay dell’anteprima (modale semplice) */}
@@ -1232,13 +1834,16 @@ try {
 }
 
 const th = {
-  textAlign: 'left',
-  borderBottom: '1px solid #ddd',
-  padding: '0.5rem'
+  border: '1px solid #ccc',
+  padding: '6px',
+  textAlign: 'center',   // 👈 aggiungi questa riga
+  backgroundColor: '#f0f0f0'
 }
 const td = {
-  borderBottom: '1px solid #eee',
-  padding: '0.5rem'
+  padding: '4px 6px',   // prima era tipo '8px 12px'
+  border: '1px solid #ddd',
+  textAlign: 'center',
+  lineHeight: '1.1'     // compatta le righe
 }
 
 export default Dashboard
