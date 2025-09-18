@@ -1851,7 +1851,7 @@ function Dashboard({ userEmail, onLogout }) {
           </div>
         )}
 
-      {/* overlay dell’anteprima (modale semplice) */}
+      {/* overlay dell’anteprima (modale semplice ) */}
       {previewOpen && (
         <div style={{
           position:'fixed', inset:0, background:'rgba(0,0,0,0.5)',
