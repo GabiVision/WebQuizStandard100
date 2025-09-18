@@ -467,17 +467,20 @@ function Quiz({
     )
   }
 
-  // ---- UI in corso ----
+  // ---- UI in corso DOMANDE RISPOSTE???----
   return (
     <div style={{ padding: '2rem' }}>
       {/* Barra superiore */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems:'center' }}>
+        
+        
         <button onClick={() => {
           if (indiceDomanda > 0) {
             setIndiceDomanda(indiceDomanda - 1)
             lastCountedIndex.current = indiceDomanda - 1
           }
         }} disabled={indiceDomanda === 0}>Indietro</button>
+
 
         <div style={{ fontWeight:'bold' }}>Round {round}</div>
 
@@ -528,6 +531,23 @@ function Quiz({
           ))}
         </ul>
       )}
+      <button
+        onClick={() => {
+          onQuit && onQuit()
+        }}
+        style={{
+          marginTop: '2.0rem',
+          marginLeft: '0.0rem',
+          padding: '0.3rem 0.3rem',
+          borderRadius: '1px',
+          background: '#2196f3',
+          color: 'white',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}
+      >
+        🏠 Torna alla Home
+      </button>
     </div>
   )
 }

@@ -25,6 +25,10 @@ function Dashboard({ userEmail, onLogout }) {
   const [domande, setDomande] = useState(null)
   const [inQuiz, setInQuiz] = useState(false)
 
+  //states per checkbox mostra/nascondi libreria e storico
+  const [showLibrary, setShowLibrary] = useState(true)
+  const [showHistory, setShowHistory] = useState(true)
+
   // Timer config
   const [timerMode, setTimerMode] = useState('up') // 'up' | 'down'
   const [countdownMinutes, setCountdownMinutes] = useState(10)
@@ -58,7 +62,7 @@ function Dashboard({ userEmail, onLogout }) {
   // Stato per la modale Statistiche singolo quiz
   const [statsModalOpen, setStatsModalOpen] = useState(false)
   const [statsModalRows, setStatsModalRows] = useState([])
-  const [statsModalTitle, setStatsModalTitle] = useState('')
+  //const [statsModalTitle, setStatsModalTitle] = useState('')
 
 // Stati separati per ordinamento e filtri della MODALE statistiche
   const [modalSort, setModalSort] = useState({ key: 'data', dir: 'desc' })
@@ -691,6 +695,7 @@ function Dashboard({ userEmail, onLogout }) {
   }
 
   // --------- Anteprima: carica domande da Supabase e mostra overlay ----------
+  
   const openPreview = async (h) => {
     try {
       const { data, error } = await supabase
@@ -1338,23 +1343,34 @@ function Dashboard({ userEmail, onLogout }) {
       {/* Libreria Quiz (fonte: quiz_files) */}
       <section style={{ marginBottom: '1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <h3>Libreria Quiz</h3>
-
-          <button onClick={reloadLibraryFromSupabase}>
-            {libraryLoading ? 'Carico…' : '🔄 Aggiorna Libreria'}
-          </button>
+          <h3>
+            <label style={{ cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showLibrary}
+                onChange={() => setShowLibrary(prev => !prev)}
+                style={{ marginRight: '0.5rem' }}
+              />
+              Libreria Quiz
+            </label>
+          </h3>
         </div>
 
 
-
-
         {/* TABELLA LIBRERIA */}
+    {showLibrary && (
+      <>
         {library.length === 0 ? (
           <p style={{ color:'#666' }}>
             Nessun quiz in libreria. Carica un file Excel per aggiungerne, poi premi “🔄 Aggiorna Libreria”.
           </p>
         ) : (
           <div style={{ overflowX:'auto' }}>
+          <button onClick={reloadLibraryFromSupabase}
+            style={{ marginTop: '0.2rem', marginBottom: '0.5rem' }}
+            >     
+            {libraryLoading ? 'Carico…' : '🔄 Aggiorna Libreria'}
+          </button>
             <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
               <thead>
                 <tr>
@@ -1519,14 +1535,30 @@ function Dashboard({ userEmail, onLogout }) {
             </table>
           </div>
         )}
+      </>
+      )}  
       </section>
 
 
 
 
-      {/* Storico //modif 10/09/25*/}  
+      {/* Storico //modif 10/09/25*/}
+      
       <section>
-        <h3>Storico Quiz</h3>
+        <h3>
+          <label style={{ cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={showHistory}
+              onChange={() => setShowHistory(prev => !prev)}
+              style={{ marginRight: '0.5rem' }}
+            />
+            Storico Quiz
+          </label>
+        </h3>
+        
+    {showHistory && (
+      <>
         {history.length === 0 ? (
           <p style={{ color:'#666' }}>Nessun tentativo ancora registrato.</p>
         ) : (
@@ -1612,7 +1644,40 @@ function Dashboard({ userEmail, onLogout }) {
                     <td style={{ ...td, textAlign: 'center' }}>{h.utente}</td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       <button
-                        onClick={() => openPreview(h)}
+                        onClick={async () => {
+                          try {
+                            let data, error
+                            
+                            if (h.quiz_id) {
+                              const result = await supabase
+                                .from("quiz_files")
+                                .select("questions")
+                                .eq("id", h.quiz_id)
+                                .maybeSingle()
+                              data = result.data
+                              error = result.error
+                            } else {
+                              const result = await supabase
+                                .from("quiz_files")
+                                .select("questions")
+                                .eq("quizName", h.quizName)
+                                .maybeSingle()
+                              data = result.data
+                              error = result.error
+                            }
+
+                            if (error || !data || !data.questions?.length) {
+                              alert("Nessuna domanda trovata per questo quiz.")
+                              return
+                            }
+
+                            setPreviewQuiz({ name: h.quizName, questions: data.questions })
+                            setPreviewOpen(true)
+                          } catch (e) {
+                            console.error("Errore anteprima:", e)
+                            alert("Errore durante l'anteprima.")
+                          }
+                        }}
                         title="Anteprima"
                         style={{ marginRight: '0.5rem' }}
                       >
@@ -1622,26 +1687,33 @@ function Dashboard({ userEmail, onLogout }) {
                       <button
                         onClick={async () => {
                           try {
-                            // 1. tenta di caricare da Supabase
-                            const { data, error } = await supabase
-                              .from("quiz_files")
-                              .select("questions")
-                              .eq("quizName", h.quizName)
-                              .maybeSingle()
-
-                            if (error) {
-                              console.error("Errore Supabase:", error)
+                            let data, error
+                            
+                            if (h.quiz_id) {
+                              const result = await supabase
+                                .from("quiz_files")
+                                .select("questions")
+                                .eq("id", h.quiz_id)
+                                .maybeSingle()
+                              data = result.data
+                              error = result.error
+                            } else {
+                              const result = await supabase
+                                .from("quiz_files")
+                                .select("questions")
+                                .eq("quizName", h.quizName)
+                                .maybeSingle()
+                              data = result.data
+                              error = result.error
                             }
 
                             if (data && data.questions) {
-                              // trovato su Supabase
                               setQuizName(h.quizName)
                               setDomande(data.questions)
                               setInQuiz(true)
                               return
                             }
 
-                            // 2. fallback: prova da localStorage
                             const quizData = localStorage.getItem(h.fileKey)
                             if (quizData) {
                               setQuizName(h.quizName)
@@ -1700,8 +1772,9 @@ function Dashboard({ userEmail, onLogout }) {
             </table>
           </div>
         )}
+      </>
+      )}  
       </section>
-
 
       {/* Aggiungi record di test 
       <button onClick={addTestRecord} style={{ marginBottom: '1rem' }}>
@@ -1713,7 +1786,7 @@ function Dashboard({ userEmail, onLogout }) {
 
 
 
-      {/* MODALE */}
+      {/* INIZIO MODALE */}
       {statsModalOpen && (
           <div style={{
             position:'fixed', top:0, left:0, right:0, bottom:0,
@@ -1846,8 +1919,12 @@ function Dashboard({ userEmail, onLogout }) {
                 }}>
                   Chiudi
                 </button>
+
+
               </div>
             </div>
+
+
           </div>
         )}
 
@@ -1896,7 +1973,28 @@ function Dashboard({ userEmail, onLogout }) {
                 </div>
               ))}
             </div>
+                        {/* torna all'home page button */}
+            <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => {
+                  setPreviewOpen(false)
+                  setInQuiz(false)
+                }}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '6px',
+                  background: '#2196f3',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                ⬅️ Torna alla Home
+              </button>
+            </div>
           </div>
+
+
         </div>
       )}
 
