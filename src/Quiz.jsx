@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Confetti from 'react-confetti'
+
 
 /**
  * Quiz avanzato:
@@ -39,6 +41,37 @@ function normalize(str) {
 }
 
 // Similarità Dice coefficient (basata su bigrammi), utile per confrontare risposte brevi
+const stopwords = ["il", "lo", "la", "i", "gli", "le", "un", "uno", "una", "dei", "degli", "delle", "di", "a", "da", "in", "su", "per", "con", "che"]
+
+const synonyms = {
+  "bambino": ["ragazzo", "fanciullo", "piccolo"],
+  "acqua": ["h2o"],
+  "co2": ["anidride", "carbonica"],
+  "correre": ["corro", "corse", "corriamo", "corsa"]
+}
+
+function normalizePlus(str) {
+  let text = normalize(str) // usa già lowercase, senza accenti, punteggiatura
+
+  // Rimuovi articoli e stopwords
+  text = text.split(" ")
+    .filter(w => !stopwords.includes(w))
+    .join(" ")
+
+  // Lemmatizzazione semplice tramite sinonimi
+  Object.entries(synonyms).forEach(([base, lista]) => {
+    lista.forEach(s => {
+      const regex = new RegExp(`\\b${s}\\b`, "g")
+      text = text.replace(regex, base)
+    })
+  })
+
+  return text.trim()
+}
+
+
+
+
 function diceCoefficient(a, b) {
   a = normalize(a); b = normalize(b)
   if (!a || !b) return 0
@@ -70,7 +103,7 @@ function Quiz({
   randomDomande = false,
   randomRisposte = false,
   freeAnswerMode = false,      //modif 10/09/25
-  freeAnswerThreshold = 0.85   //modif 10/09/25
+  freeAnswerThreshold = 0.55   //modif 10/09/25
 }) {
   const [round, setRound] = useState(1)
   const [domandeAttive, setDomandeAttive] = useState([])
@@ -202,6 +235,9 @@ function Quiz({
           <div className="spinner-inner"></div>
           <div className="spinner-outer"></div>
         </div>
+        
+
+
         <p style={{ marginTop: '1rem', fontWeight: 'bold', color: '#4caf50' }}>
           Caricamento domande...
         </p>
@@ -330,8 +366,8 @@ function Quiz({
     const correctText = domandaCorrente.risposte[domandaCorrente.corretta - 1]
     const user = freeAnswer
 
-    const exact = normalize(user) === normalize(correctText)
-    const fuzzy = diceCoefficient(user, correctText) >= freeAnswerThreshold
+    const exact = normalizePlus(user) === normalizePlus(correctText)
+    const fuzzy = diceCoefficient(normalizePlus(user), normalizePlus(correctText)) >= freeAnswerThreshold
     const isCorrect = exact || fuzzy
 
     applyAnswerResult(isCorrect)
@@ -396,6 +432,26 @@ function Quiz({
     }
 
 
+    const handleFase2 = () => {
+      // reset come Ricomincia
+      setRound(1)
+      setIndiceDomanda(0)
+      setDomandeConcluse([])
+      setStatisticheDomande(domande.map(() => ({
+        mostrata: 0, corrette: 0, errate: 0, nulle: 0, consecutiveCorrette: 0
+      })))
+      setCompletato(false)
+      lastCountedIndex.current = null
+      setElapsedSec(0)
+      setRemainingSec(countdownMinutes * 60)
+      startInfoRef.current = nowParts()
+      
+      // differenza: forza la modalità risposta aperta
+      if (typeof onQuit === 'function') {
+        // torniamo alla Dashboard per riaprire Quiz con freeAnswerMode = true
+        onQuit({ fase2: true })
+      }
+    }
 
     return (
       <div style={{ padding: '2rem' }}>
@@ -452,14 +508,41 @@ function Quiz({
                 handleEsci()
               }} style={{ marginRight:'0.5rem' }}>🚪 Esci</button>
               <button onClick={handleRicomincia}>🔄 Ricomincia da capo</button>
+
             </div>
           </>
         ) : (
           <>
+          {tutteApprese && (
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            recycle={false}           // coriandoli una volta sola
+            numberOfPieces={600}      // quantità di coriandoli
+            gravity={0.2}             // caduta più lenta
+          />
+        )}
             <p style={{ marginTop: '1rem' }}>🎉 Hai appreso tutte le domande!</p>
             <div style={{ marginTop:'1rem' }}>
               <button onClick={handleEsciFinale} style={{ marginRight:'0.5rem' }}>🚪 Esci</button>
               <button onClick={handleRicomincia}>🔄 Ricomincia da capo</button>
+
+              {tutteApprese && (
+                <button
+                  onClick={handleFase2}
+                  style={{
+                    marginLeft: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    background: '#ff9800',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📝 Passa alla Fase 2 con risposta aperta
+                </button>
+              )}
             </div>
           </>
         )}

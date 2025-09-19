@@ -985,7 +985,15 @@ function Dashboard({ userEmail, onLogout }) {
           timerMode={timerMode}                 // 'up' o 'down'
           countdownMinutes={countdownMinutes}   // minuti per conto alla rovescia
           onFinish={handleQuizFinish}           // chiamato a quiz completato (tutte apprese)
-          onQuit={handleQuitToHome}             // uscita alla dashboard
+          onQuit={(opts) => {
+            if (opts?.fase2) {
+              // riavvia subito il quiz con modalità risposta aperta
+              setFreeAnswerMode(true)
+              setInQuiz(true)
+            } else {
+              handleQuitToHome()
+            }
+          }}            // uscita alla dashboard
           randomDomande={randomDomande}
           randomRisposte={randomRisposte}
           freeAnswerMode={freeAnswerMode}             // 👈 nuovo prop
@@ -1247,6 +1255,8 @@ function Dashboard({ userEmail, onLogout }) {
         </div>
       </section>
 
+
+
       {/* Sorgente domande */}
       <section style={{ marginBottom: '1.5rem' }}>
         <h3>Carica domande</h3>
@@ -1283,15 +1293,9 @@ function Dashboard({ userEmail, onLogout }) {
           </button>
           
           {/* Pulsante ON OFF nascondi risposte */}
-          <button
-            onClick={() => setFreeAnswerMode(prev => !prev)}
-            style={{ background: freeAnswerMode ? '#4caf50' : '#ccc', padding:'0.5rem 1rem', borderRadius:'6px' }}
-            title="Modalità risposta aperta (nasconde opzioni)"
-          >
-            Risposta aperta {freeAnswerMode ? '📝 ON' : '✖ OFF'}
-          </button>
+    
 
-          {freeAnswerMode && (
+     {/*  {freeAnswerMode && (
             <label title="Soglia di similitudine per considerare una risposta corretta">
               Soglia:{' '}
               <input
@@ -1303,13 +1307,39 @@ function Dashboard({ userEmail, onLogout }) {
                 style={{ width: '80px' }}
               />
             </label>
-          )}
+        )}
+      */}
+
         </div>
+
 
 
         <p style={{ color:'#666', marginTop:'0.5rem' }}>
           Struttura attesa Excel: <code>Domanda</code>, <code>Risposta1..4</code>, <code>Corretta</code> (1..4).
         </p>
+      </section>
+
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h3>Risposte aperte</h3>
+          <button
+            onClick={() => setFreeAnswerMode(prev => !prev)}
+            style={{ background: freeAnswerMode ? '#4caf50' : '#ccc', padding:'0.5rem 1rem', borderRadius:'6px', marginRight: '1rem' }}
+            title="Modalità risposta aperta (nasconde opzioni)"
+          >
+            Risposta aperta {freeAnswerMode ? '📝 ON' : '✖ OFF'}
+          </button>
+        <label>
+          Soglia di similitudine per considerare una risposta corretta ({freeAnswerThreshold.toFixed(2)})
+          <input
+            type="range"
+            min="0.0"
+            max="1"
+            step="0.01"
+            value={freeAnswerThreshold}
+            onChange={(e) => setFreeAnswerThreshold(parseFloat(e.target.value))}
+            style={{ marginLeft: '1rem', verticalAlign: 'middle' }}
+          />
+        </label>
       </section>
 
 
